@@ -87,6 +87,12 @@ watch(carouselKey, () => {
 const REPEAT_BELOW = 5
 const shouldRepeat = computed(() => items.value.length > 0 && items.value.length < REPEAT_BELOW)
 
+/**
+ * 拖动 / 切换过程中把下方信息区淡出，停稳后再淡入：
+ * 100ms 足够快，不会让人等，又遮掉了「内容跳到下一张」那一瞬间的突兀。
+ */
+const dragging = ref(false)
+
 // 用 subscribe() 返回的释放函数，而不是直接 store.unsubscribe()：
 // 前后台可能同时订阅，谁也不能替别人拆监听
 let release: (() => void) | undefined
@@ -204,6 +210,8 @@ function clearSearch(): void {
           show-pagination
           :label="searching ? '搜索结果轮播' : `${activeGroup?.name ?? '应用'}轮播`"
           @change="(index) => (activeIndex = index)"
+          @interactstart="dragging = true"
+          @interactend="dragging = false"
         >
           <template #default="{ index, active }">
             <!-- 数据少时轮播会重复铺满，这里用取模把渲染下标折回真实数据 -->
@@ -211,7 +219,15 @@ function clearSearch(): void {
           </template>
         </CoverflowCarousel>
 
-        <AppInfoPanel v-if="activeItem" :item="activeItem" />
+        <div
+          v-if="activeItem"
+          :class="[
+            'transition-opacity duration-100 ease-out',
+            dragging ? 'pointer-events-none opacity-0' : 'opacity-100',
+          ]"
+        >
+          <AppInfoPanel :item="activeItem" />
+        </div>
 
         <p class="text-[11px] text-muted-foreground/70">拖动、方向键或点两侧卡片切换</p>
       </template>

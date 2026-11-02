@@ -68,7 +68,13 @@ const props = withDefaults(
   },
 )
 
-const emit = defineEmits<{ change: [index: number] }>()
+const emit = defineEmits<{
+  change: [index: number]
+  /** 开始交互（按下 / 方向键 / 分页点 / 两侧按钮）：父组件可让周围内容先淡出 */
+  interactstart: []
+  /** 位移动画停稳：内容该回来了 */
+  interactend: []
+}>()
 
 const frameEl = ref<HTMLDivElement | null>(null)
 const cards: (HTMLElement | null)[] = []
@@ -186,6 +192,7 @@ function settle(to: number): void {
       pos = to
       paint()
       raf = null
+      emit('interactend')
       return
     }
     pos += remaining * 0.16
@@ -205,6 +212,7 @@ function goTo(index: number): void {
   if (count <= 0) return
   // 走环上的短边，而不是绕回去
   const to = props.loop ? index + Math.round((target - index) / count) * count : index
+  emit('interactstart')
   settle(clampPos(to))
   emit('change', toItemIndex(indexAt(to)))
 }
@@ -225,6 +233,7 @@ function onPointerDown(event: PointerEvent): void {
     cancelAnimationFrame(raf)
     raf = null
   }
+  emit('interactstart')
   target = pos
   movedPx = 0
   captured = false
