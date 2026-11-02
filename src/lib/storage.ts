@@ -8,27 +8,40 @@ import { supabase } from '@/lib/supabase'
  */
 export const COVER_BUCKET = 'app-covers'
 
-/** 上传前的本地限制：单张 10MB，超过直接拒绝（压缩后会更小） */
+/**
+ * 统一裁成 2:3 的 600×900 WebP。
+ *
+ * 卡片最大只有 168×252，600×900 已经是 3.5 倍超采样，够清晰了；
+ * 定死尺寸的另一个好处是**存储和带宽可控**：一张封面永远 ≈30~80KB，
+ * 不会因为谁传了张 8MB 的原图就让首页多下几 MB。
+ */
+export const COVER_WIDTH = 600
+export const COVER_HEIGHT = 900
+const COVER_QUALITY = 0.82
+
+/** 上传前的本地限制：单张 10MB，超过直接拒绝（反正最后都会压成几百 KB） */
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-/** 压缩时长边上限。卡片只有几百像素宽，1400 已经绰绰有余 */
-const MAX_EDGE = 1400
+
+/** 能被 canvas 解码的位图格式；SVG 这类矢量图不做栅格化，直接让用户导出成位图 */
+const ACCEPTED_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/gif',
+])
 
 export async function uploadCover(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('只能上传图片文件')
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error(`图片太大（${(file.size / 1024 / 1024).toFixed(1)}MB），请压到 10MB 以内`)
-  }
+  assertUsable(file)
 
-  const blob = await shrink(file)
+  const blob = await prepareCover(file)
   const ext = extensionOf(blob)
   // 按月分目录，避免单目录堆几千个对象；文件名用随机 UUID，天然不重名
   const path = `${new Date().toISOString().slice(0, 7)}/${crypto.randomUUID()}.${ext}`
 
   const { error } = await supabase.storage.from(COVER_BUCKET).upload(path, blob, {
     cacheControl: '31536000',
-    contentType: blob.type || file.type,
+    contentType: blob.type || 'image/webp',
     upsert: false,
   })
   if (error) throw new Error(storageErrorMessage(error.message))
@@ -47,40 +60,71 @@ export function coverUrl(path?: string | null): string {
   return supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
-/**
- * 客户端先压一道：手机拍的照动辄 4~8MB，而卡片最多显示 180×270。
- * 长边超 1400 或体积超 600KB 才重编码成 WebP；
- * GIF / SVG / AVIF 原样上传（前者会丢动画，后两者浏览器支持不齐）。
- */
-async function shrink(file: File): Promise<Blob> {
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') {
-    return file
+function assertUsable(file: File): void {
+  if (!ACCEPTED_TYPES.has(file.type)) {
+    throw new Error(
+      file.type === 'image/svg+xml'
+        ? 'SVG 不能直接当封面，请先导出成 PNG / WebP'
+        : '只支持 JPG / PNG / WebP / AVIF / GIF 图片',
+    )
   }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`图片太大（${(file.size / 1024 / 1024).toFixed(1)}MB），请压到 10MB 以内`)
+  }
+}
+
+/**
+ * 裁剪 + 压缩，返回最终的 WebP。
+ *
+ * 按 `object-cover` 的语义**居中裁切**再缩放：先算「填满 2:3 需要多大一块源图」，
+ * 从中心取这块，画到 600×900 的画布上 —— 比例不对的图不会被拉扁，
+ * 只是左右（或上下）各切掉一些，和前台卡片看到的完全一致。
+ */
+export async function prepareCover(file: File): Promise<Blob> {
+  assertUsable(file)
 
   let bitmap: ImageBitmap
   try {
+    // createImageBitmap 默认按 EXIF 方向摆正，手机竖拍的图不会躺着进画布
     bitmap = await createImageBitmap(file)
   } catch {
-    return file // 解不出来的图就别难为它，交给后端
+    throw new Error('这张图解码失败，换一张试试')
   }
 
   try {
-    const longest = Math.max(bitmap.width, bitmap.height)
-    const scale = Math.min(1, MAX_EDGE / longest)
-    if (scale === 1 && file.size < 600 * 1024) return file
+    if (!bitmap.width || !bitmap.height) throw new Error('这张图没有有效尺寸')
+
+    const coverScale = Math.max(COVER_WIDTH / bitmap.width, COVER_HEIGHT / bitmap.height)
+    const sourceWidth = COVER_WIDTH / coverScale
+    const sourceHeight = COVER_HEIGHT / coverScale
+    const sourceX = (bitmap.width - sourceWidth) / 2
+    const sourceY = (bitmap.height - sourceHeight) / 2
 
     const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bitmap.width * scale)
-    canvas.height = Math.round(bitmap.height * scale)
+    canvas.width = COVER_WIDTH
+    canvas.height = COVER_HEIGHT
     const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    if (!ctx) throw new Error('当前浏览器不支持图片处理')
+
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(
+      bitmap,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      COVER_WIDTH,
+      COVER_HEIGHT,
+    )
 
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/webp', 0.9),
+      canvas.toBlob(resolve, 'image/webp', COVER_QUALITY),
     )
-    // 压完反而更大就用原图（比如本来就是个小的 PNG）
-    return blob && blob.size < file.size ? blob : file
+    if (!blob) throw new Error('图片处理失败，换一张试试')
+    return blob
   } finally {
     bitmap.close()
   }
@@ -90,7 +134,6 @@ function extensionOf(blob: Blob): string {
   if (blob.type === 'image/webp') return 'webp'
   if (blob.type === 'image/png') return 'png'
   if (blob.type === 'image/jpeg') return 'jpg'
-  if (blob.type === 'image/gif') return 'gif'
   return 'bin'
 }
 

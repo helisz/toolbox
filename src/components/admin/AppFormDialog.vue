@@ -314,8 +314,8 @@ async function submit(): Promise<void> {
                 </Button>
               </div>
               <p class="text-[11px] text-muted-foreground">
-                建议 2:3 竖图（如 600×900），前台按 cover 裁切。长边超过 1400px
-                会自动压成 WebP 再上传到 Supabase Storage。
+                不论原图多大，都会<b class="font-medium text-foreground">居中裁成 2:3、压到 600×900 的 WebP</b>
+                再上传（约 30~80KB）。比例不对也没关系，只会切掉两侧或上下的一部分。
               </p>
               <p v-if="uploadError" class="text-[11px] text-destructive">{{ uploadError }}</p>
             </div>
