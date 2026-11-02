@@ -21,7 +21,13 @@ export interface AppItem {
   /** 归属的 app_group.id。`group` 是 SQL 保留字，所以列名是 group_id */
   group_id: string
   name: string
+  /** 源码仓库地址 */
   git_url: string
+  /**
+   * 线上访问地址（就是应用本身的站点）。
+   * 空串表示没单独配，前台点卡片直接跳 `git_url`。
+   */
+  url: string
   /** 完整 README 原文；抓取失败为空串 */
   readme_raw: string
   /** 卡片上展示的简介（≤300 字）。拉取 README 时自动生成，之后由用户手工改 */
@@ -60,6 +66,7 @@ export interface AppItemWrite {
   group_id: string
   name: string
   git_url: string
+  url: string
   readme_raw: string
   intro: string
   enabled: boolean

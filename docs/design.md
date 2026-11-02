@@ -48,7 +48,8 @@ Postgres 有真正的约束能力，所以「字段校验」从应用层搬到�
 | `id` | uuid | PK | — |
 | `group_id` | uuid | FK → `app_group.id`, `on delete cascade` | 原需求 `relation` |
 | `name` | text | 1–80 字 | 应用名 |
-| `git_url` | text | `~ '^https?://.+'` | 只允许 http/https（挡 `javascript:`） |
+| `git_url` | text | `~ '^https?://.+'` | 源码仓库地址；只允许 http/https（挡 `javascript:`） |
+| `url` | text | `= '' or ~ '^https?://.+'`，`default ''` | 线上访问地址；**空串表示没单独配，前台点卡片退回 `git_url`** |
 | `readme_raw` | text | `≤ 200000` 字，`default ''` | README 全文；抓取失败为空串 |
 | `intro` | text | `≤ 300` 字，`default ''` | 卡片简介；拉取 README 时自动生成，**之后由用户手工维护** |
 | `enabled` | boolean | `default true` | 停用后前台不展示，后台仍可见可编辑 |
@@ -244,6 +245,8 @@ export interface AppItem {
   group_id: string
   name: string
   git_url: string
+  /** 线上地址；空串表示前台点卡片直接跳 git_url */
+  url: string
   /** 完整 README 原文，抓取失败为空串 */
   readme_raw: string
   hero_icon_name: IconSlug
@@ -305,6 +308,12 @@ export const itemFormSchema = z.object({
     .trim()
     .min(1, '请输入 Git 地址')
     .regex(/^https?:\/\/.+/, '只支持 http/https 开头的地址'),
+  /** 线上地址：空串合法（退回 Git 地址），非空则必须是 http/https */
+  url: z
+    .string()
+    .trim()
+    .max(500, '最多 500 个字')
+    .refine((v) => v === '' || /^https?:\/\/.+/.test(v), '只支持 http/https 开头的地址'),
   hero_icon_name: z.string().min(1, '请选择图标'),
   theme_color: z.string().min(1, '请选择主题色'),
   tags: z.array(z.string().trim().min(1).max(30)).max(10, '最多 10 个标签'),
@@ -619,7 +628,8 @@ router.beforeEach(async (to) => {
         顺手的马赛克工具（最多三行，居中）
 ```
 
-- **卡片里只有图标**（点了直接跳 Git 地址）；应用名、地址、「跳转」按钮、三行简介都在**卡片外面、下方居中**，由 `AppInfoPanel` 渲染，且只显示当前居中那张卡对应的应用。
+- **卡片里只有图标**（点了直接打开这个应用：`url` 优先，空则退回 `git_url`）；应用名、地址、「GitHub」图标按钮、三行简介都在**卡片外面、下方居中**，由 `AppInfoPanel` 渲染，且只显示当前居中那张卡对应的应用。
+- **地址那行跟着「点图标会去哪」走**（`appHref()`），不显示与跳转目标不一致的地址；GitHub 图标按钮永远跳 `git_url`。
 - **应用太少就循环铺满**：`repeat` 打开时组件按「可视区宽度 / 每张卡占位」把环补长（最少 5 张），父组件用 `index % items.length` 取内容。少于 5 个应用时铺满且隐藏分页点（下标会重复，点没意义）；5 个以上正常渲染并显示分页点。
 - **没有详情弹窗**：简介就是后台维护的 `intro`，README 全文不再渲染到前台（`lib/markdown.ts` 因此暂时没有调用方，保留着以备将来恢复详情页）。
 - 非居中卡片的内部链接 `pointer-events-none` 且 `tabindex="-1"`，点一下只是把它转到中间，避免误跳；拖拽超过 6px 后 `click.capture` 会吞掉那次点击。

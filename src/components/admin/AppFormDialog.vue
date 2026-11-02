@@ -43,6 +43,7 @@ const form = reactive<ItemForm>({
   group: '',
   name: '',
   git_url: '',
+  url: '',
   intro: '',
   hero_icon_name: DEFAULT_ICON_SLUG,
   theme_color: DEFAULT_THEME_COLOR,
@@ -70,6 +71,7 @@ watch(open, (value) => {
     form.group = props.item.group_id
     form.name = props.item.name
     form.git_url = props.item.git_url
+    form.url = props.item.url
     form.intro = props.item.intro
     form.hero_icon_name = props.item.hero_icon_name
     form.theme_color = props.item.theme_color
@@ -83,6 +85,7 @@ watch(open, (value) => {
   form.group = props.defaultGroupId || store.sortedGroups[0]?.id || ''
   form.name = ''
   form.git_url = ''
+  form.url = ''
   form.intro = ''
   form.hero_icon_name = DEFAULT_ICON_SLUG
   form.theme_color = DEFAULT_THEME_COLOR
@@ -209,6 +212,18 @@ async function submit(): Promise<void> {
         </div>
 
         <div class="space-y-1.5">
+          <Label for="item-url">线上地址</Label>
+          <Input
+            id="item-url"
+            v-model="form.url"
+            placeholder="https://helisz.github.io/poke-survivor/（留空则用 Git 地址）"
+          />
+          <p class="text-[11px] text-muted-foreground">
+            前台点图标卡片跳这里；下方的 Git 图标按钮永远跳 Git 地址。
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
           <div class="flex items-baseline justify-between">
             <Label for="item-intro">卡片简介</Label>
             <span :class="['text-[11px]', introSize > 300 ? 'text-destructive' : 'text-muted-foreground']">
@@ -259,8 +274,11 @@ async function submit(): Promise<void> {
           <AppIcon :icon="form.hero_icon_name" :color="form.theme_color" size="sm" />
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ form.name || '应用名称预览' }}</p>
-            <p v-if="form.git_url" class="truncate font-mono text-[11px] text-muted-foreground/70">
-              {{ form.git_url.replace(/^https?:\/\//i, '').replace(/\.git$/i, '') }}
+            <p
+              v-if="form.url || form.git_url"
+              class="truncate font-mono text-[11px] text-muted-foreground/70"
+            >
+              {{ (form.url || form.git_url).replace(/^https?:\/\//i, '').replace(/\.git$/i, '') }}
             </p>
             <p class="line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">
               {{ form.intro || '简介预览：前台卡片最多显示三行' }}

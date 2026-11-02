@@ -49,6 +49,8 @@ function toItem(row: Row): AppItem {
     group_id: str(row.group_id),
     name: str(row.name, '未命名应用'),
     git_url: str(row.git_url),
+    // 缺列（老库还没跑增量 SQL）时按空串处理，前台会退回 Git 地址
+    url: str(row.url),
     readme_raw: str(row.readme_raw),
     intro: str(row.intro),
     // 缺列（老库还没跑增量 SQL）时按启用处理，不要整条数据变不可见
@@ -95,6 +97,9 @@ function friendlyError(message: string): string {
   if (text.includes('row-level security') || text.includes('permission denied')) {
     return '没有写权限：请确认当前账号的 uid 已写入 admins 表'
   }
+  if (/column .*url.* does not exist|42703/.test(text) && text.includes('url')) {
+    return '数据库缺 url 列：请在 Supabase SQL Editor 重跑 supabase/schema.sql'
+  }
   if (text.includes('violates check constraint')) {
     return '内容不符合约束：请检查名称长度、Git 地址格式与标签数量'
   }
@@ -120,6 +125,12 @@ export const useDataStore = defineStore('data', () => {
   const tags = ref<TagDoc[]>([])
   const loading = ref(true)
   const error = ref<string | null>(null)
+  /**
+   * 老库还没跑增量 SQL 时缺 `url` 列。
+   * 探测一次，缺列就别把 url 写进 payload（否则整条保存都会 42703 失败），
+   * 后台据此显示提示，避免「填了地址却没保存」这种静默丢数据。
+   */
+  const urlColumnMissing = ref(false)
 
   // ---------------------------------------------------------------- getters
 
@@ -222,6 +233,16 @@ export const useDataStore = defineStore('data', () => {
     if (quiet === false) loading.value = false
   }
 
+  /** 只探一次：`select url` 报 42703 就说明老库还没补这一列 */
+  let urlColumnChecked = false
+
+  async function detectUrlColumn(): Promise<void> {
+    if (urlColumnChecked) return
+    urlColumnChecked = true
+    const { error: err } = await supabase.from(TABLES.items).select('url').limit(1)
+    urlColumnMissing.value = Boolean(err && /url/i.test(err.message))
+  }
+
   // -------------------------------------------------------------- 订阅 / 实时
 
   let channel: RealtimeChannel | null = null
@@ -241,7 +262,7 @@ export const useDataStore = defineStore('data', () => {
     loading.value = true
 
     try {
-      await Promise.all([refreshGroups(), refreshItems(), refreshTags()])
+      await Promise.all([refreshGroups(), refreshItems(), refreshTags(), detectUrlColumn()])
     } catch (err) {
       handleError(err)
     } finally {
@@ -300,10 +321,11 @@ export const useDataStore = defineStore('data', () => {
     readmeRaw: string,
     enabled: boolean,
   ): AppItemWrite {
-    return {
+    const payload: AppItemWrite = {
       group_id: form.group,
       name: form.name.trim(),
       git_url: form.git_url.trim(),
+      url: form.url.trim(),
       readme_raw: readmeRaw,
       intro: form.intro.trim(),
       enabled,
@@ -312,6 +334,9 @@ export const useDataStore = defineStore('data', () => {
       tags: normalizeTags(form.tags),
       sort,
     }
+    // 老库缺 url 列时不能把 url 带上去，否则整条 insert/update 都会失败
+    if (urlColumnMissing.value) delete (payload as Partial<AppItemWrite>).url
+    return payload
   }
 
   /** 新标签幂等入池：id = lower(trim(name))，冲突直接忽略 */
@@ -470,6 +495,7 @@ export const useDataStore = defineStore('data', () => {
     tags,
     loading,
     error,
+    urlColumnMissing,
     // getters
     sortedGroups,
     itemsByGroup,

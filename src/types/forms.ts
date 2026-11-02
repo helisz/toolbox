@@ -30,6 +30,14 @@ export const itemFormSchema = z.object({
     .trim()
     .min(1, '请输入 Git 地址')
     .regex(/^https?:\/\/[^\s]+$/i, '只支持 http/https 开头的地址'),
+  /** 线上地址：留空表示前台点卡片直接跳 Git 地址 */
+  url: z
+    .string()
+    .trim()
+    .max(500, '最多 500 个字')
+    .refine((value) => value === '' || /^https?:\/\/[^\s]+$/i.test(value), {
+      message: '只支持 http/https 开头的地址，留空则用 Git 地址',
+    }),
   /** 卡片简介：拉取 README 时自动填充，可手工修改 / 清空 */
   intro: z.string().trim().max(300, '最多 300 个字'),
   hero_icon_name: heroIconSchema,

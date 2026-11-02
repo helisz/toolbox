@@ -78,13 +78,17 @@ for (const table of ['app_group', 'app_item', 'tag_pool']) {
 }
 
 // 新增列是否已经补上（老库重跑 schema.sql 才会加）
-const columns = await get('app_item?select=id,intro,enabled&limit=1')
+const columns = await get('app_item?select=id,intro,enabled,url&limit=1')
 if (columns.status === 200) {
-  report('app_item 含 intro / enabled 列', true)
+  report('app_item 含 intro / enabled / url 列', true)
 } else if (/column .* does not exist|42703/i.test(columns.text)) {
-  report('app_item 含 intro / enabled 列', false, '缺列 → 重跑一遍 schema.sql 即可补齐')
+  report('app_item 含 intro / enabled / url 列', false, '缺列 → 重跑一遍 schema.sql 即可补齐')
 } else {
-  report('app_item 含 intro / enabled 列', false, `status ${columns.status}: ${columns.text.slice(0, 120)}`)
+  report(
+    'app_item 含 intro / enabled / url 列',
+    false,
+    `status ${columns.status}: ${columns.text.slice(0, 120)}`,
+  )
 }
 
 // 匿名写必须被拒

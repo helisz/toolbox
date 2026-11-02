@@ -22,6 +22,7 @@ create table if not exists public.app_item (
   group_id       uuid not null references public.app_group (id) on delete cascade,
   name           text not null check (char_length(btrim(name)) between 1 and 80),
   git_url        text not null check (git_url ~ '^https?://.+'),
+  url            text not null default '' check (url = '' or url ~ '^https?://.+'),
   readme_raw     text not null default '' check (char_length(readme_raw) <= 200000),
   intro          text not null default '' check (char_length(intro) <= 300),
   enabled        boolean not null default true,
@@ -33,14 +34,24 @@ create table if not exists public.app_item (
   updated_at     timestamptz not null default now()
 );
 
--- 增量升级：老库重跑本文件即可补齐 `intro` / `enabled` 两列（新建库时上面的 create 已含）
+-- 增量升级：老库重跑本文件即可补齐 `intro` / `enabled` / `url` 列（新建库时上面的 create 已含）
 alter table public.app_item add column if not exists intro   text not null default '';
 alter table public.app_item add column if not exists enabled boolean not null default true;
+-- 线上地址：空串表示「没单独配，直接用 git_url」
+alter table public.app_item add column if not exists url     text not null default '';
 
 do $$
 begin
   alter table public.app_item
     add constraint app_item_intro_len check (char_length(intro) <= 300);
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table public.app_item
+    add constraint app_item_url_shape check (url = '' or url ~ '^https?://.+');
 exception
   when duplicate_object then null;
 end $$;
