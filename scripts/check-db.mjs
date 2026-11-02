@@ -78,18 +78,35 @@ for (const table of ['app_group', 'app_item', 'tag_pool']) {
 }
 
 // 新增列是否已经补上（老库重跑 schema.sql 才会加）
-const columns = await get('app_item?select=id,intro,enabled,url&limit=1')
+const columns = await get('app_item?select=id,intro,enabled,url,image_path&limit=1')
 if (columns.status === 200) {
-  report('app_item 含 intro / enabled / url 列', true)
+  report('app_item 含 intro / enabled / url / image_path 列', true)
 } else if (/column .* does not exist|42703/i.test(columns.text)) {
-  report('app_item 含 intro / enabled / url 列', false, '缺列 → 重跑一遍 schema.sql 即可补齐')
+  report(
+    'app_item 含 intro / enabled / url / image_path 列',
+    false,
+    `缺 ${/image_path/.test(columns.text) ? 'image_path' : /url/.test(columns.text) ? 'url' : '新增'} 列 → 重跑一遍 schema.sql 即可补齐`,
+  )
 } else {
   report(
-    'app_item 含 intro / enabled / url 列',
+    'app_item 含 intro / enabled / url / image_path 列',
     false,
     `status ${columns.status}: ${columns.text.slice(0, 120)}`,
   )
 }
+
+// 封面图存储桶：用「读一个不存在的对象」来探测。
+// 桶不存在时 Supabase 返回 Bucket not found；桶存在只是对象没有，报错文案不同。
+const bucketProbe = await fetch(`${url}/storage/v1/object/public/app-covers/__probe__`, {
+  headers,
+})
+const bucketBody = await bucketProbe.text()
+const bucketExists = !/bucket not found/i.test(bucketBody)
+report(
+  'Storage 桶 app-covers 存在',
+  bucketExists,
+  bucketExists ? `status ${bucketProbe.status}` : '缺桶 → 重跑一遍 schema.sql（含 Storage 段）',
+)
 
 // 匿名写必须被拒
 const writeProbe = await fetch(`${url}/rest/v1/app_group`, {

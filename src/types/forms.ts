@@ -38,6 +38,8 @@ export const itemFormSchema = z.object({
     .refine((value) => value === '' || /^https?:\/\/[^\s]+$/i.test(value), {
       message: '只支持 http/https 开头的地址，留空则用 Git 地址',
     }),
+  /** 封面图对象路径（存储桶内），由后台图片上传写入 */
+  image_path: z.string().trim().max(300),
   /** 卡片简介：拉取 README 时自动填充，可手工修改 / 清空 */
   intro: z.string().trim().max(300, '最多 300 个字'),
   hero_icon_name: heroIconSchema,

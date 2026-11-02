@@ -25,6 +25,7 @@ create table if not exists public.app_item (
   url            text not null default '' check (url = '' or url ~ '^https?://.+'),
   readme_raw     text not null default '' check (char_length(readme_raw) <= 200000),
   intro          text not null default '' check (char_length(intro) <= 300),
+  image_path     text not null default '',
   enabled        boolean not null default true,
   hero_icon_name text not null default 'squares-2x2' check (hero_icon_name ~ '^[a-z0-9-]+$'),
   theme_color    text not null default 'slate-500' check (theme_color ~ '^[a-z]+-[0-9]{2,3}$'),
@@ -34,11 +35,13 @@ create table if not exists public.app_item (
   updated_at     timestamptz not null default now()
 );
 
--- 增量升级：老库重跑本文件即可补齐 `intro` / `enabled` / `url` 列（新建库时上面的 create 已含）
+-- 增量升级：老库重跑本文件即可补齐 `intro` / `enabled` / `url` / `image_path` 列（新建库时上面的 create 已含）
 alter table public.app_item add column if not exists intro   text not null default '';
 alter table public.app_item add column if not exists enabled boolean not null default true;
 -- 线上地址：空串表示「没单独配，直接用 git_url」
 alter table public.app_item add column if not exists url     text not null default '';
+-- 封面图在存储桶 app-covers 里的对象路径（不是完整 URL：换域名/换项目都不用改数据）
+alter table public.app_item add column if not exists image_path text not null default '';
 
 do $$
 begin
@@ -174,8 +177,30 @@ begin
 end;
 $$;
 
+-- ---------------------------------------------------------- 7. 封面图存储（Storage）
+
+-- 公开读的桶：前台 <img src> 直接取，不必每次签名 URL
+insert into storage.buckets (id, name, public)
+values ('app-covers', 'app-covers', true)
+on conflict (id) do update set public = true;
+
+-- 所有人可读；只有管理员能上传 / 覆盖 / 删除（storage.objects 本身已开 RLS）
+drop policy if exists app_covers_read on storage.objects;
+create policy app_covers_read on storage.objects
+  for select using (bucket_id = 'app-covers');
+
+drop policy if exists app_covers_write on storage.objects;
+create policy app_covers_write on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'app-covers' and public.is_admin());
+
+drop policy if exists app_covers_delete on storage.objects;
+create policy app_covers_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'app-covers' and public.is_admin());
+
 -- ============================================================
--- 7. 建管理员（上一步跑完后，单独执行这一段）
+-- 8. 建管理员（上一步跑完后，单独执行这一段）
 --
 --   1) Authentication → Users → Add user，填邮箱 + 密码
 --   2) 复制该用户的 UID

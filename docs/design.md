@@ -53,7 +53,8 @@ Postgres 有真正的约束能力，所以「字段校验」从应用层搬到�
 | `readme_raw` | text | `≤ 200000` 字，`default ''` | README 全文；抓取失败为空串 |
 | `intro` | text | `≤ 300` 字，`default ''` | 卡片简介；拉取 README 时自动生成，**之后由用户手工维护** |
 | `enabled` | boolean | `default true` | 停用后前台不展示，后台仍可见可编辑 |
-| `hero_icon_name` | text | `~ '^[a-z0-9-]+$'`，`default 'layout-grid'` | 存 slug；值域由前端 `ICON_SLUGS`（Lucide）决定，老数据的老名字由 `LEGACY_ALIASES` 兜底 |
+| `image_path` | text | `default ''` | 封面图在存储桶 `app-covers` 里的对象路径；空串 → 前台回退成图标色块 |
+| `hero_icon_name` | text | `~ '^[a-z0-9-]+$'`，`default 'layout-grid'` | 老字段，只在没封面图时用于回退；后台已不再编辑，老名字由 `LEGACY_ALIASES` 兜底 |
 | `theme_color` | text | `~ '^[a-z]+-[0-9]{2,3}$'`，`default 'slate-500'` | 值域由前端 `THEME_COLORS` 决定 |
 | `tags` | text[] | `coalesce(array_length(tags,1),0) <= 10` | 标签名，非 id |
 | `sort` | double precision | not null | 组内升序 |
@@ -167,8 +168,9 @@ toolbox/
    ├─ lib/
    │  ├─ supabase.ts             # createClient 单例 + 会话存储策略 + TABLES
    │  ├─ palette.ts              # THEME_COLORS 静态映射表（亮/暗双份类名）
-   │  ├─ icons.ts                # Lucide 图标：glob 按需 chunk + 老 slug 别名
-   │  ├─ icon-presets.ts        # 选择器常用图标（静态，119 个）
+   │  ├─ icons.ts                # Lucide 图标：只作封面缺失时的回退（索引表动态加载）
+   │  ├─ icon-modules.ts         # 图标 glob 索引表，独立 chunk，用到才拉
+   │  ├─ storage.ts              # Supabase Storage：上传/删除封面 + 客户端压缩
    │  ├─ markdown.ts             # markdown-it + DOMPurify + 相对链接改写
    │  ├─ readme.ts               # git URL → raw 候选 → 抓取 → 摘录提取
    │  ├─ sort.ts                 # computeSortValue / planMove
@@ -198,13 +200,12 @@ toolbox/
    │  │  └─ EmptyState.vue
    │  ├─ site/
    │  │  ├─ SiteHeader.vue       # 搜索 + 主题 + 后台入口
-   │  │  └─ AppSlide.vue         # 轮播里的一张卡片：图标/名称/地址/跳转/简介
+   │  │  └─ AppSlide.vue         # 轮播里的一张卡片：2:3 封面图（无图回退图标）
    │  └─ admin/
    │     ├─ GroupManager.vue
    │     ├─ AppManager.vue       # 「应用」页：按应用组分段，每段一个拖拽列表
    │     ├─ AppGroupSection.vue   # 单个分组区块（列表 + 行内启用开关 + 组内排序）
-   │     ├─ AppFormDialog.vue
-   │     ├─ IconPickerDialog.vue
+   │     ├─ AppFormDialog.vue     # 表单，含封面图上传（Supabase Storage）
    │     ├─ ColorPicker.vue
    │     ├─ TagInput.vue
    │     └─ SortableList.vue     # 拖拽容器，前台后台复用
@@ -222,9 +223,6 @@ toolbox/
 ### `src/types/models.ts`
 
 ```ts
-import type { THEME_COLORS } from '@/lib/palette'
-import { ICON_SLUGS } from '@/lib/icons'
-
 export type ThemeColor = (typeof THEME_COLORS)[number]['key']
 export type IconSlug = string
 
@@ -355,42 +353,31 @@ export function getColorToken(key: string): ColorToken {
 }
 ```
 
-### `src/lib/icons.ts`（Lucide，按需 chunk）
+### `src/lib/icons.ts`（Lucide，只作封面缺失时的回退）
+
+后台已改成**上传封面图**，不再选图标，所以图标只剩「老数据没传封面」这一条路径会用到。相应地拆成两个文件：
 
 ```ts
-import { defineAsyncComponent, type Component } from 'vue'
+// src/lib/icon-modules.ts —— 索引表，单独一个 chunk，不进主包
+export const ICON_DIR = '/node_modules/lucide-vue-next/dist/esm/icons/'
+export const iconModules = import.meta.glob('/node_modules/lucide-vue-next/dist/esm/icons/*.js')
+```
 
-const ICON_DIR = '/node_modules/lucide-vue-next/dist/esm/icons/'
+```ts
+// src/lib/icons.ts
+let modulesPromise: Promise<typeof import('@/lib/icon-modules')> | null = null
+const loadIconModules = () => (modulesPromise ??= import('@/lib/icon-modules'))
 
-// 每个图标一个独立小文件，只有真正渲染到的才会被下载
-const iconModules = import.meta.glob('/node_modules/lucide-vue-next/dist/esm/icons/*.js') as Record<
-  string,
-  () => Promise<{ default: Component }>
->
-
-export const ICON_SLUGS = Object.keys(iconModules)
-  .map((path) => path.slice(ICON_DIR.length).replace(/\.js$/, ''))
-  .sort()
-
-export const DEFAULT_ICON_SLUG = 'layout-grid'
-
-/** 老数据存的是 Heroicons 的名字，读的时候翻译成 Lucide */
-const LEGACY_ALIASES = {
-  'squares-2x2': 'layout-grid',
-  'paper-airplane': 'send',
-  'cog6-tooth': 'settings',
-  'rocket-launch': 'rocket',
-  // …约 90 条，覆盖历史数据可能出现的老名字
-}
-
-const cache = new Map<string, Component>()
-
+/** 同步返回组件；内部异步组件：真要渲染时才拉索引表 + 那一个图标 */
 export function resolveIcon(slug?: string | null): Component {
-  const key = normalize(slug) // 命中 Lucide 名字 → 别名 → 兜底
+  const key = normalize(slug) // 只做别名翻译，存在性留到加载索引表时判断
   if (cache.has(key)) return cache.get(key)!
-  const component = defineAsyncComponent(() =>
-    iconModules[ICON_DIR + key + '.js']!().then((mod) => mod.default),
-  )
+  const component = defineAsyncComponent(async () => {
+    const { ICON_DIR, iconModules } = await loadIconModules()
+    const loader =
+      iconModules[ICON_DIR + key + '.js'] ?? iconModules[ICON_DIR + DEFAULT_ICON_SLUG + '.js']
+    return (await loader()).default
+  })
   cache.set(key, component)
   return component
 }
@@ -398,12 +385,10 @@ export function resolveIcon(slug?: string | null): Component {
 
 要点：
 
-- **不用全量桶**。Lucide 有 1700+ 个图标，`import * as` 会让 tree-shaking 失效；改成 `import.meta.glob` 后每个图标是一个几百字节的按需 chunk，页面只用 3 个就只下 3 个。
-- **`resolveIcon` 仍然同步返回**，靠 `defineAsyncComponent` 把下载推迟到真正渲染时，调用方（`AppIcon`、`AppSlide`）代码不用改成 `await`。
-- **历史数据兼容**：库里存的是 Heroicons 的 slug（`cog6-tooth`、`paper-airplane`、`squares-2x2`），`LEGACY_ALIASES` 把它们翻成语义相同的 Lucide 图标，否则老应用会集体退化成默认图标。
-- **选择器要成片显示图标**，逐个懒加载会瞬间发几百个请求，所以常用 119 个在 `src/lib/icon-presets.ts` 里静态引入（一个小 chunk），搜索时才走懒加载并限制最多渲染 60 个。
-
-> 代价：`ICON_SLUGS`（1705 个名字）+ glob 映射表常驻主包，约 +30 KB gzip；换来图标本体不进包、选择器能检索全量。相比之前 Heroicons 全量注册（一次性 +60~100 KB）更省。
+- **索引表按需加载**。glob 映射表本身有 ~140KB（gzip ~35KB）+ 1705 个图标 chunk 的登记，以前常驻 `data` chunk（398KB）。挪进 `icon-modules.ts` 再用动态 `import()` 拉之后，`data` chunk 降到 **88KB / 30KB gzip**，首页只显示封面图时根本不会请求它。
+- **`resolveIcon` 仍然同步返回**，靠 `defineAsyncComponent` 把下载推迟到真正渲染时，调用方（`AppIcon`、`AppSlide`）不用改成 `await`。
+- **历史数据兼容**：库里存的是 Heroicons 的 slug（`cog6-tooth`、`paper-airplane`、`squares-2x2`），`LEGACY_ALIASES`（约 90 条）把它们翻成语义相同的 Lucide 图标，否则回退路径会集体退化成默认图标。
+- 图标选择器（`IconPickerDialog.vue`）与静态预设集（`icon-presets.ts`）已删除 —— 上传封面替代了它的位置。
 
 ### `src/lib/readme.ts`（摘录提取规则）
 
@@ -621,14 +606,15 @@ router.beforeEach(async (to) => {
             [ header: 工具箱 ... 搜索  主题  后台 ]
                           ↕ 居中
                      [ 应用组 ▾ ]
-        ◄  [🜁] [🜂] [🜃] [🜄] [🜁]  ►   ← 只放图标；数据少时循环铺满
+        ◄  [▮] [▮] [▮] [▮] [▮]  ►    ← 2:3 竖版封面图；数据少时循环铺满
                    Mask Tool
             github.com/helisz/web-page-mask
-                   [ 跳转 ↗ ]
+                   [ GitHub ]
         顺手的马赛克工具（最多三行，居中）
 ```
 
-- **卡片里只有图标**（点了直接打开这个应用：`url` 优先，空则退回 `git_url`）；应用名、地址、「GitHub」图标按钮、三行简介都在**卡片外面、下方居中**，由 `AppInfoPanel` 渲染，且只显示当前居中那张卡对应的应用。
+- **卡片是一张 2:3 的封面图**（`object-cover` 裁切，宽 `clamp(132px,15vw,168px)` → 高 `clamp(198px,22.5vw,252px)`），点了直接打开这个应用：`url` 优先，空则退回 `git_url`。没传封面的老数据回退成「图标色块」，不会开天窗。
+- 应用名、地址、GitHub 图标按钮、三行简介都在**卡片外面、下方居中**，由 `AppInfoPanel` 渲染，且只显示当前居中那张卡对应的应用。
 - **地址那行跟着「点图标会去哪」走**（`appHref()`），不显示与跳转目标不一致的地址；GitHub 图标按钮永远跳 `git_url`。
 - **应用太少就循环铺满**：`repeat` 打开时组件按「可视区宽度 / 每张卡占位」把环补长（最少 5 张），父组件用 `index % items.length` 取内容。少于 5 个应用时铺满且隐藏分页点（下标会重复，点没意义）；5 个以上正常渲染并显示分页点。
 - **没有详情弹窗**：简介就是后台维护的 `intro`，README 全文不再渲染到前台（`lib/markdown.ts` 因此暂时没有调用方，保留着以备将来恢复详情页）。
@@ -663,6 +649,16 @@ Wiki    0 个应用                        [+ 添加]
 - 每段是一个独立的 `vue-draggable-plus` 容器 + 独立的 `useReorder` 实例。排序语义本来就是「组内重排」，落库也按组内目标下标算（`moveItem(groupId, id, toIndex)`），共用一个实例反而要额外处理跨组拖拽的边界。
 - 段头的「添加」把该组 id 传给表单，新增时默认落在这一组；顶部「新增应用」仍然可用，默认落在第一个组。
 - **换组仍走编辑表单里的「归属应用组」下拉** —— 那是数据归属，不是视图筛选，两者别混。
+- 行首缩略图：有封面就显示 2:3 小图（`h-10 w-[27px]`），没有才退回图标块。
+
+### 5.3 封面图上传（Supabase Storage）
+
+- 桶 `app-covers`，**public** 读：前台 `<img src>` 直取，不必每次签名 URL；写/删只有管理员（`public.is_admin()`），策略与业务表 RLS 同一套判定。
+- 库里存的是**对象路径**（`2026-11/<uuid>.webp`），不是完整 URL —— 换域名/换项目都不用改数据，渲染时 `getPublicUrl()` 现拼。
+- 选完文件**立刻上传**，拿到路径先放在表单里，点「保存」才写库。好处是保存时不会卡着大文件上传；代价是用户中途取消会留一个孤儿对象（无关功能，桶里多几个文件而已）。
+- 客户端先压一道：长边 > 1400px 或 > 600KB 的 JPEG/PNG/WebP 用 canvas 重编码成 WebP 0.9，压完反而更大就用原图。GIF / SVG / AVIF 原样上传（前者的动画、后两者浏览器支持不齐）。
+- 换封面或删应用时顺手删旧对象（`removeCover`，失败静默）：不给存储桶无限长胖的机会。
+- 失败文案都翻译成了可行动的句子：桶不存在 → 提示重跑 `schema.sql`；没权限 → 提示 uid 未写入 `admins`。
 
 ---
 
@@ -702,7 +698,7 @@ export function renderReadme(raw: string, baseUrl: string): string {
 |---|---|---|
 | 三张表全量拉取 + realtime 全表订阅 | 每次改动都回拉整表，流量随数据量线性增长 | 单表 > 5000 行时改成「按组查询 + 分页」 |
 | 前端直连 GitHub raw | 私有库 / GitLab / Gitee（部分可用）/ 自建 Git 抓不到，失败留空 | 需要覆盖内网 Git 时，才引入 Supabase Edge Function 做代理 |
-| Lucide 1705 个图标 | 名字表 + glob 映射常驻主包（~+30 KB gzip），图标本体按需下载 | 已按需拆分，无需再动 |
+| Lucide 1705 个图标 | 后台改上传封面后只剩「无图回退」用它；索引表单独成 chunk（310KB / 59KB gzip），动态 `import()` 拉，首页不请求 | 已按需拆分 |
 | `admins` 只能用 SQL 维护 | 加管理员要登 Supabase 后台 | 管理员多于 3 人时写个 RPC + 后台页面 |
 | 搜索在客户端做 | 数据量大时首屏要全量加载 | 需要全文检索时上 `pg_trgm` + RPC |
 | 标签写入与 item 写入不是同一事务 | 极端情况下 item 写成功但标签池没入池 | 需要强一致时封装一个 Postgres 函数用 RPC 调用 |

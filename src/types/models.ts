@@ -28,6 +28,8 @@ export interface AppItem {
    * 空串表示没单独配，前台点卡片直接跳 `git_url`。
    */
   url: string
+  /** 封面图在存储桶 app-covers 里的对象路径；空串表示没传，前台退回图标 */
+  image_path: string
   /** 完整 README 原文；抓取失败为空串 */
   readme_raw: string
   /** 卡片上展示的简介（≤300 字）。拉取 README 时自动生成，之后由用户手工改 */
@@ -67,6 +69,7 @@ export interface AppItemWrite {
   name: string
   git_url: string
   url: string
+  image_path: string
   readme_raw: string
   intro: string
   enabled: boolean

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { Check, LayoutGrid, RefreshCw } from 'lucide-vue-next'
+import { Image as ImageIcon, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
 import ColorPicker from '@/components/admin/ColorPicker.vue'
-import IconPickerDialog from '@/components/admin/IconPickerDialog.vue'
 import TagInput from '@/components/admin/TagInput.vue'
 import AppIcon from '@/components/common/AppIcon.vue'
 import { Button } from '@/components/ui/button'
@@ -20,8 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useReadme } from '@/composables/useReadme'
 import { useToast } from '@/composables/useToast'
-import { DEFAULT_ICON_SLUG, resolveIcon } from '@/lib/icons'
+import { DEFAULT_ICON_SLUG } from '@/lib/icons'
 import { DEFAULT_THEME_COLOR } from '@/lib/palette'
+import { coverUrl, uploadCover } from '@/lib/storage'
 import { useDataStore } from '@/stores/data'
 import { itemFormSchema, type AppItem, type ItemForm } from '@/types'
 
@@ -44,6 +44,7 @@ const form = reactive<ItemForm>({
   name: '',
   git_url: '',
   url: '',
+  image_path: '',
   intro: '',
   hero_icon_name: DEFAULT_ICON_SLUG,
   theme_color: DEFAULT_THEME_COLOR,
@@ -55,23 +56,25 @@ const readmeRaw = ref('')
 const autoIntro = ref('')
 const errorMessage = ref('')
 const submitting = ref(false)
-const iconPickerOpen = ref(false)
+const uploading = ref(false)
+const uploadError = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const isEditing = computed(() => props.item !== null)
-const currentIcon = computed(() => resolveIcon(form.hero_icon_name))
 const readmeSize = computed(() => readmeRaw.value.length)
 const introSize = computed(() => form.intro.length)
 
 watch(open, (value) => {
   if (!value) return
   errorMessage.value = ''
-  iconPickerOpen.value = false
+  uploadError.value = ''
 
   if (props.item) {
     form.group = props.item.group_id
     form.name = props.item.name
     form.git_url = props.item.git_url
     form.url = props.item.url
+    form.image_path = props.item.image_path
     form.intro = props.item.intro
     form.hero_icon_name = props.item.hero_icon_name
     form.theme_color = props.item.theme_color
@@ -86,13 +89,34 @@ watch(open, (value) => {
   form.name = ''
   form.git_url = ''
   form.url = ''
+  form.image_path = ''
   form.intro = ''
   form.hero_icon_name = DEFAULT_ICON_SLUG
   form.theme_color = DEFAULT_THEME_COLOR
   form.tags = []
   readmeRaw.value = ''
   autoIntro.value = ''
-})
+}, { immediate: true })
+
+/** 选完就上传：先把文件丢进存储桶拿到路径，保存时才写库 */
+async function onPickFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 清掉，才能再次选中同一个文件
+  if (!file) return
+
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    form.image_path = await uploadCover(file)
+    toast.success('封面已上传')
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : '上传失败'
+    toast.fromError(err, '上传失败')
+  } finally {
+    uploading.value = false
+  }
+}
 
 async function pullReadme(): Promise<void> {
   if (!form.git_url.trim()) {
@@ -160,7 +184,7 @@ async function submit(): Promise<void> {
     <DialogContent class="max-w-2xl">
       <DialogHeader>
         <DialogTitle>{{ isEditing ? '编辑应用' : '新增应用' }}</DialogTitle>
-        <DialogDescription>归属分组、图标与主题色决定卡片外观</DialogDescription>
+        <DialogDescription>归属分组与封面图决定卡片外观</DialogDescription>
       </DialogHeader>
 
       <div class="max-h-[62vh] space-y-4 overflow-y-auto pr-1">
@@ -241,37 +265,81 @@ async function submit(): Promise<void> {
           </p>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div class="space-y-1.5">
-            <Label>图标</Label>
-            <Button
-              type="button"
-              variant="outline"
-              class="w-full justify-start gap-2"
-              @click="iconPickerOpen = true"
+        <div class="space-y-1.5">
+          <Label>封面图</Label>
+          <div class="flex items-start gap-3">
+            <!-- 2:3 预览，和前台卡片同一比例，所见即所得 -->
+            <div
+              class="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg border bg-muted"
             >
-              <span class="flex size-5 items-center justify-center">
-                <component :is="currentIcon" v-if="form.hero_icon_name" class="size-4" />
-                <LayoutGrid v-else class="size-4" />
-              </span>
-              <span class="truncate text-xs">{{ form.hero_icon_name || '选择图标' }}</span>
-              <Check v-if="form.hero_icon_name" class="ml-auto size-3.5 opacity-50" />
-            </Button>
-          </div>
+              <img
+                v-if="form.image_path"
+                :src="coverUrl(form.image_path)"
+                alt="封面预览"
+                class="size-full object-cover"
+              />
+              <div v-else class="flex size-full items-center justify-center text-muted-foreground">
+                <ImageIcon class="size-5" />
+              </div>
+              <div
+                v-if="uploading"
+                class="absolute inset-0 flex items-center justify-center bg-background/70"
+              >
+                <LoaderCircle class="size-5 animate-spin text-muted-foreground" />
+              </div>
+            </div>
 
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  :disabled="uploading"
+                  @click="fileInput?.click()"
+                >
+                  <Upload class="size-3.5" />
+                  {{ form.image_path ? '更换图片' : '选择图片' }}
+                </Button>
+                <Button
+                  v-if="form.image_path"
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="uploading"
+                  @click="form.image_path = ''"
+                >
+                  <Trash2 class="size-3.5" />
+                  移除
+                </Button>
+              </div>
+              <p class="text-[11px] text-muted-foreground">
+                建议 2:3 竖图（如 600×900），前台按 cover 裁切。长边超过 1400px
+                会自动压成 WebP 再上传到 Supabase Storage。
+              </p>
+              <p v-if="uploadError" class="text-[11px] text-destructive">{{ uploadError }}</p>
+            </div>
+          </div>
+          <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onPickFile" />
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="space-y-1.5">
             <Label>主题色</Label>
             <ColorPicker v-model="form.theme_color" />
           </div>
-        </div>
 
-        <div class="space-y-1.5">
-          <Label>标签</Label>
-          <TagInput v-model="form.tags" :options="store.tagOptions" />
+          <div class="space-y-1.5">
+            <Label>标签</Label>
+            <TagInput v-model="form.tags" :options="store.tagOptions" />
+          </div>
         </div>
 
         <div class="flex items-start gap-2 rounded-lg border bg-muted/30 p-3">
-          <AppIcon :icon="form.hero_icon_name" :color="form.theme_color" size="sm" />
+          <div v-if="form.image_path" class="h-[72px] w-12 shrink-0 overflow-hidden rounded">
+            <img :src="coverUrl(form.image_path)" alt="" class="size-full object-cover" />
+          </div>
+          <AppIcon v-else :icon="form.hero_icon_name" :color="form.theme_color" size="sm" />
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ form.name || '应用名称预览' }}</p>
             <p
@@ -298,8 +366,6 @@ async function submit(): Promise<void> {
           {{ submitting ? '保存中…' : '保存' }}
         </Button>
       </DialogFooter>
-
-      <IconPickerDialog v-model:open="iconPickerOpen" :selected="form.hero_icon_name" @select="(slug) => (form.hero_icon_name = slug)" />
     </DialogContent>
   </Dialog>
 </template>

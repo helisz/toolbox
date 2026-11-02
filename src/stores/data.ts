@@ -4,6 +4,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase, TABLES } from '@/lib/supabase'
 import { DEFAULT_THEME_COLOR } from '@/lib/palette'
 import { bySortAsc, nextSortValue, planMove, type MovePlan } from '@/lib/sort'
+import { removeCover } from '@/lib/storage'
 import { tagDocId } from '@/lib/utils'
 import type {
   AppGroup,
@@ -51,6 +52,7 @@ function toItem(row: Row): AppItem {
     git_url: str(row.git_url),
     // 缺列（老库还没跑增量 SQL）时按空串处理，前台会退回 Git 地址
     url: str(row.url),
+    image_path: str(row.image_path),
     readme_raw: str(row.readme_raw),
     intro: str(row.intro),
     // 缺列（老库还没跑增量 SQL）时按启用处理，不要整条数据变不可见
@@ -126,11 +128,11 @@ export const useDataStore = defineStore('data', () => {
   const loading = ref(true)
   const error = ref<string | null>(null)
   /**
-   * 老库还没跑增量 SQL 时缺 `url` 列。
-   * 探测一次，缺列就别把 url 写进 payload（否则整条保存都会 42703 失败），
-   * 后台据此显示提示，避免「填了地址却没保存」这种静默丢数据。
+   * 老库还没跑增量 SQL 时可能缺新增列（`url` / `image_path`）。
+   * 探测一次，缺列就别把该字段写进 payload（否则整条保存都会 42703 失败），
+   * 后台据此显示提示，避免「填了却没保存」这种静默丢数据。
    */
-  const urlColumnMissing = ref(false)
+  const missingColumns = ref<string[]>([])
 
   // ---------------------------------------------------------------- getters
 
@@ -233,14 +235,19 @@ export const useDataStore = defineStore('data', () => {
     if (quiet === false) loading.value = false
   }
 
-  /** 只探一次：`select url` 报 42703 就说明老库还没补这一列 */
-  let urlColumnChecked = false
+  /** 只探一次：逐列 `select`，报 42703 就说明老库还没补这一列 */
+  let columnsChecked = false
+  const OPTIONAL_COLUMNS = ['url', 'image_path'] as const
 
-  async function detectUrlColumn(): Promise<void> {
-    if (urlColumnChecked) return
-    urlColumnChecked = true
-    const { error: err } = await supabase.from(TABLES.items).select('url').limit(1)
-    urlColumnMissing.value = Boolean(err && /url/i.test(err.message))
+  async function detectMissingColumns(): Promise<void> {
+    if (columnsChecked) return
+    columnsChecked = true
+    const missing: string[] = []
+    for (const column of OPTIONAL_COLUMNS) {
+      const { error: err } = await supabase.from(TABLES.items).select(column).limit(1)
+      if (err && /does not exist|42703/i.test(err.message)) missing.push(column)
+    }
+    missingColumns.value = missing
   }
 
   // -------------------------------------------------------------- 订阅 / 实时
@@ -262,7 +269,7 @@ export const useDataStore = defineStore('data', () => {
     loading.value = true
 
     try {
-      await Promise.all([refreshGroups(), refreshItems(), refreshTags(), detectUrlColumn()])
+      await Promise.all([refreshGroups(), refreshItems(), refreshTags(), detectMissingColumns()])
     } catch (err) {
       handleError(err)
     } finally {
@@ -326,6 +333,7 @@ export const useDataStore = defineStore('data', () => {
       name: form.name.trim(),
       git_url: form.git_url.trim(),
       url: form.url.trim(),
+      image_path: form.image_path.trim(),
       readme_raw: readmeRaw,
       intro: form.intro.trim(),
       enabled,
@@ -334,8 +342,10 @@ export const useDataStore = defineStore('data', () => {
       tags: normalizeTags(form.tags),
       sort,
     }
-    // 老库缺 url 列时不能把 url 带上去，否则整条 insert/update 都会失败
-    if (urlColumnMissing.value) delete (payload as Partial<AppItemWrite>).url
+    // 老库缺列时不能把该字段带上去，否则整条 insert/update 都会失败
+    for (const column of missingColumns.value) {
+      delete (payload as unknown as Record<string, unknown>)[column]
+    }
     return payload
   }
 
@@ -449,6 +459,11 @@ export const useDataStore = defineStore('data', () => {
     if (err) throw new Error(friendlyError(err.message))
 
     await Promise.all([refreshItems(true), upsertTags(form.tags)])
+
+    // 换过封面就把旧图删掉，别让存储桶无限长胖。失败也无所谓，多几个孤儿对象不影响功能
+    if (existing.image_path && existing.image_path !== form.image_path) {
+      void removeCover(existing.image_path)
+    }
   }
 
   /** 启用 / 停用：只改一列，走 RLS 的 update 策略 */
@@ -465,6 +480,9 @@ export const useDataStore = defineStore('data', () => {
   }
 
   async function deleteItem(id: string): Promise<void> {
+    // 先记下封面路径：refreshItems 之后这条已经从 items 里消失了
+    const coverPath = items.value.find((item) => item.id === id)?.image_path ?? ''
+
     const { data, error: err } = await supabase
       .from(TABLES.items)
       .delete()
@@ -474,6 +492,9 @@ export const useDataStore = defineStore('data', () => {
     assertAffected(data as unknown[] | null, '删除')
 
     await refreshItems(true)
+
+    // 应用删了，封面图也别留在桶里
+    if (coverPath) void removeCover(coverPath)
   }
 
   async function moveItem(groupId: string, id: string, toIndex: number): Promise<void> {
@@ -495,7 +516,7 @@ export const useDataStore = defineStore('data', () => {
     tags,
     loading,
     error,
-    urlColumnMissing,
+    missingColumns,
     // getters
     sortedGroups,
     itemsByGroup,

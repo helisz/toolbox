@@ -8,6 +8,7 @@ import AppIcon from '@/components/common/AppIcon.vue'
 import SortableList from '@/components/admin/SortableList.vue'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { coverUrl } from '@/lib/storage'
 import { useDataStore } from '@/stores/data'
 import type { AppGroup, AppItem } from '@/types'
 
@@ -109,7 +110,11 @@ async function toggleEnabled(item: AppItem, enabled: boolean): Promise<void> {
           <GripVertical class="size-4" />
         </button>
 
-        <AppIcon :icon="item.hero_icon_name" :color="item.theme_color" size="sm" />
+        <!-- 有封面就显示缩略图（2:3，和前台一致），没传还是原来的图标块 -->
+        <div v-if="item.image_path" class="h-10 w-[27px] shrink-0 overflow-hidden rounded">
+          <img :src="coverUrl(item.image_path)" alt="" class="size-full object-cover" />
+        </div>
+        <AppIcon v-else :icon="item.hero_icon_name" :color="item.theme_color" size="sm" />
 
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm" :class="!item.enabled && 'text-muted-foreground line-through'">

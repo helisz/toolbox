@@ -1,31 +1,23 @@
 import { defineAsyncComponent, type Component } from 'vue'
 
 /**
- * 图标库：Lucide（https://github.com/lucide-icons/lucide），共 1700+ 个。
+ * 图标库：Lucide（https://github.com/lucide-icons/lucide）。
  *
- * 关键取舍：**不把整个图标库打进首屏**。
- * 1700 个图标全量引入大约会让包体翻好几倍，而一个页面通常只用得到几个，
- * 所以这里用 `import.meta.glob` 把每个图标变成独立的按需 chunk，
- * 只有真正渲染到的图标才会被下载（单文件几百字节）。
+ * 现在前台卡片以**上传的封面图**为主（`image_path`），图标只作为「没传封面的老数据」的兜底，
+ * 后台也不再提供图标选择器。
  *
- * 需要成片显示图标的地方（如后台图标选择器）另走 `lib/icon-presets.ts` 的静态集合。
+ * 所以图标索引表（`lib/icon-modules.ts`，140KB 级别的 glob 映射）改成**动态加载**：
+ * 首页正常只显示封面图，根本不会下载它；真碰到没封面的记录才拉一次，之后走缓存。
  */
-const ICON_DIR = '/node_modules/lucide-vue-next/dist/esm/icons/'
-
-const iconModules = import.meta.glob('/node_modules/lucide-vue-next/dist/esm/icons/*.js') as Record<
-  string,
-  () => Promise<{ default: Component }>
->
-
-/** 全部可用图标名（kebab-case），后台搜索用 */
-export const ICON_SLUGS: string[] = Object.keys(iconModules)
-  .map((path) => path.slice(ICON_DIR.length).replace(/\.js$/, ''))
-  .sort()
-
-const iconSlugSet = new Set(ICON_SLUGS)
-
 /** 找不到图标时的兜底 */
 export const DEFAULT_ICON_SLUG = 'layout-grid'
+
+let modulesPromise: Promise<typeof import('@/lib/icon-modules')> | null = null
+
+function loadIconModules(): Promise<typeof import('@/lib/icon-modules')> {
+  modulesPromise ??= import('@/lib/icon-modules')
+  return modulesPromise
+}
 
 /**
  * 老数据是按 Heroicons 的名字存的（`squares-2x2` / `paper-airplane` / `cog6-tooth` …），
@@ -120,35 +112,30 @@ const LEGACY_ALIASES: Record<string, string> = {
 /** slug → 组件。异步组件包一层，避免同一个图标被重复创建 */
 const cache = new Map<string, Component>()
 
+/** 只做别名翻译，不校验存在性：真正的判定留到加载索引表时（那时才知道有哪些图标） */
 function normalize(slug: string | undefined | null): string {
   const raw = (slug ?? '').trim().toLowerCase()
   if (!raw) return DEFAULT_ICON_SLUG
-  if (iconSlugSet.has(raw)) return raw
-  const alias = LEGACY_ALIASES[raw]
-  if (alias && iconSlugSet.has(alias)) return alias
-  return DEFAULT_ICON_SLUG
+  return LEGACY_ALIASES[raw] ?? raw
 }
 
 /**
- * 取图标组件。同步返回，首次调用会注册一个异步组件，
- * 图标本体在渲染时才下载（已缓存的不会再发请求）。
+ * 取图标组件。**同步返回**（渲染处不用处理 loading），
+ * 内部是异步组件：真要显示时才会拉索引表 + 那一个图标文件，之后走缓存。
  */
 export function resolveIcon(slug?: string | null): Component {
   const key = normalize(slug)
   const cached = cache.get(key)
   if (cached) return cached
 
-  const loader = iconModules[ICON_DIR + key + '.js']
-  const component: Component = loader
-    ? defineAsyncComponent(() => loader().then((mod) => mod.default))
-    : (cache.get(DEFAULT_ICON_SLUG) ?? defineAsyncComponent(() =>
-        iconModules[ICON_DIR + DEFAULT_ICON_SLUG + '.js']!().then((mod) => mod.default),
-      ))
+  const component = defineAsyncComponent(async () => {
+    const { ICON_DIR, iconModules } = await loadIconModules()
+    const loader =
+      iconModules[ICON_DIR + key + '.js'] ?? iconModules[ICON_DIR + DEFAULT_ICON_SLUG + '.js']
+    if (!loader) throw new Error(`找不到图标：${key}`)
+    return (await loader()).default
+  })
 
   cache.set(key, component)
   return component
-}
-
-export function isValidIconSlug(slug: string): boolean {
-  return iconSlugSet.has(slug)
 }

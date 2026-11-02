@@ -75,13 +75,15 @@ async function confirmDelete(): Promise<void> {
       </Button>
     </div>
 
-    <!-- 老库缺 url 列时明确提示：否则用户填了线上地址、保存后却查无此项 -->
+    <!-- 老库缺新增列时明确提示：否则用户填了、保存后却查无此项 -->
     <div
-      v-if="store.urlColumnMissing"
+      v-if="store.missingColumns.length"
       class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
     >
-      数据库还没有 <code class="font-mono">url</code> 列，「线上地址」现在保存不了。请在 Supabase SQL
-      Editor 里重跑 <code class="font-mono">supabase/schema.sql</code>。
+      数据库还没有
+      <code v-for="column in store.missingColumns" :key="column" class="font-mono"> {{ column }} </code>
+      列，对应字段现在保存不了。请在 Supabase SQL Editor 里重跑
+      <code class="font-mono">supabase/schema.sql</code>。
     </div>
 
     <EmptyState
