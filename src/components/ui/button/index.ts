@@ -14,6 +14,8 @@ export const buttonVariants = cva(
         secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        /** GitHub 那种黑底白字：亮色/暗色主题下都保持这块「黑色块」，品牌感一致 */
+        github: 'bg-neutral-900 text-white shadow-sm hover:bg-neutral-800',
       },
       size: {
         default: 'h-9 px-4 py-2',

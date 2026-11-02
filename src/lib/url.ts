@@ -9,11 +9,3 @@ import type { AppItem } from '@/types'
 export function appHref(item: Pick<AppItem, 'url' | 'git_url'>): string {
   return item.url.trim() || item.git_url
 }
-
-/** 展示用地址：去掉协议、结尾 .git 和斜杠 */
-export function displayHref(href: string): string {
-  return href
-    .replace(/^https?:\/\//i, '')
-    .replace(/\.git$/i, '')
-    .replace(/\/$/, '')
-}

@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Github } from 'lucide-vue-next'
+import { AppWindow, Github } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { extractIntro } from '@/lib/readme'
-import { appHref, displayHref } from '@/lib/url'
+import { appHref } from '@/lib/url'
 import type { AppItem } from '@/types'
 
 /**
- * 轮播卡片下方的信息区：应用名 / 地址 / GitHub 图标按钮 / 最多三行简介，整体居中。
+ * 轮播卡片下方的信息区：应用名 / 两个动作按钮 / 最多三行简介，整体居中。
  * 只显示**当前居中那张卡**对应的应用，所以这里永远是单条数据。
  */
 const props = defineProps<{ item: AppItem }>()
 
-/** 地址那行跟着「点图标会去哪」走，避免显示的地址和实际跳转不一致 */
-const shownUrl = computed(() => displayHref(appHref(props.item)))
+/** 卡片点击去哪，这个按钮就去哪：优先 url，没填就退回仓库地址 */
+const href = computed(() => appHref(props.item))
 
 /** 后台手写的简介优先；没写就退回 README 摘录 */
 const description = computed(
@@ -27,22 +27,34 @@ const description = computed(
       {{ props.item.name }}
     </h2>
 
-    <p class="mt-1 truncate font-mono text-[11px] text-muted-foreground">
-      {{ shownUrl }}
-    </p>
+    <!-- 左边看源码，右边直接用；「访问应用」跟卡片点击同一个目标 -->
+    <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
+      <Button v-if="props.item.git_url" variant="github" size="sm" class="gap-1.5" as-child>
+        <a
+          :href="props.item.git_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="打开 GitHub 仓库"
+          title="打开 GitHub 仓库"
+        >
+          <Github class="size-4" />
+          GitHub
+        </a>
+      </Button>
 
-    <!-- 图标卡片跳线上地址，这个按钮专门跳源码仓库 -->
-    <Button size="icon-sm" variant="outline" class="mt-3" as-child>
-      <a
-        :href="props.item.git_url"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="打开 Git 仓库"
-        title="打开 Git 仓库"
-      >
-        <Github class="size-4" />
-      </a>
-    </Button>
+      <Button size="sm" class="gap-1.5" as-child>
+        <a
+          :href="href"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="访问应用"
+          title="访问应用"
+        >
+          <AppWindow class="size-4" />
+          访问应用
+        </a>
+      </Button>
+    </div>
 
     <!-- 固定三行高度：切换应用时简介长短不一会让下方内容上下跳 -->
     <p class="mt-3 line-clamp-3 min-h-[3.75rem] text-xs leading-relaxed text-muted-foreground">
