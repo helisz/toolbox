@@ -44,7 +44,8 @@ const description = computed(
       </a>
     </Button>
 
-    <p class="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+    <!-- 固定三行高度：切换应用时简介长短不一会让下方内容上下跳 -->
+    <p class="mt-3 line-clamp-3 min-h-[3.75rem] text-xs leading-relaxed text-muted-foreground">
       {{ description || '暂无简介' }}
     </p>
   </div>

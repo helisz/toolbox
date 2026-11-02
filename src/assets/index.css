@@ -78,6 +78,19 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* 轮播下方信息区换内容时闪一下：100ms 够快，不会让人等；
+     起点不给 0 —— 文字全程都看得见，只是一次轻微的「刷新」感，快速拖动时也不会闪成空白 */
+  --animate-fade-in: fade-in 100ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 @layer base {
