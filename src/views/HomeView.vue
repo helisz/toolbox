@@ -5,7 +5,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import AppSlide from '@/components/site/AppSlide.vue'
 import SiteHeader from '@/components/site/SiteHeader.vue'
 import { CoverflowCarousel } from '@/components/ui/coverflow-carousel'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDataStore } from '@/stores/data'
 import type { AppItem } from '@/types'
@@ -35,20 +35,38 @@ const activeGroup = computed(
   () => store.sortedGroups.find((group) => group.id === activeGroupId.value) ?? null,
 )
 
-// 分组增删后保证选中项有效；首次加载自动选第一个组
-watch(
-  () => store.sortedGroups,
-  (groups) => {
-    if (!groups.length) {
-      activeGroupId.value = ''
-      return
-    }
+/**
+ * 默认分组必须选「有应用的那个」，否则第一个分组正好是空的时候，打开首页就是一片空白。
+ * 用户手动选过之后就完全尊重他的选择（包括故意停在空分组）。
+ */
+const userPicked = ref(false)
+
+function pickDefaultGroup(): void {
+  const groups = store.sortedGroups
+  if (!groups.length) {
+    activeGroupId.value = ''
+    return
+  }
+  if (userPicked.value) {
+    // 只是保证选中的组没被删掉
     if (!groups.some((group) => group.id === activeGroupId.value)) {
       activeGroupId.value = groups[0]?.id ?? ''
     }
-  },
-  { immediate: true },
-)
+    return
+  }
+  const best = groups.find((group) => (counts.value[group.id] ?? 0) > 0) ?? groups[0]
+  if (best && best.id !== activeGroupId.value) activeGroupId.value = best.id
+}
+
+// 分组和「各组启用中的应用数」任一变化都重新挑一次（数据是异步到位的）
+watch(() => [store.sortedGroups, store.enabledByGroup] as const, pickDefaultGroup, {
+  immediate: true,
+})
+
+function selectGroup(id: string): void {
+  userPicked.value = true
+  activeGroupId.value = id
+}
 
 /**
  * 轮播是强制 remount 的：切换分组或搜索条件变化后必须回到第一张，
@@ -82,16 +100,23 @@ function clearSearch(): void {
         <Select
           v-if="!searching"
           :model-value="activeGroupId"
-          @update:model-value="(value) => (activeGroupId = String(value ?? ''))"
+          @update:model-value="(value) => selectGroup(String(value ?? ''))"
         >
           <SelectTrigger
             class="h-11 w-full max-w-[18rem] justify-between gap-2 px-4 text-sm font-medium shadow-sm"
             aria-label="切换应用组"
           >
-            <SelectValue placeholder="选择应用组" />
+            <!-- 不用 <SelectValue>：它显示的是选中项内容的快照，数据刷新后不会同步
+                 （曾出现「Tools · 0」而该组实际有 1 个应用）。自己渲染就一定是最新的 -->
+            <span class="truncate">{{ activeGroup?.name ?? '选择应用组' }}</span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-for="group in store.sortedGroups" :key="group.id" :value="group.id">
+            <SelectItem
+              v-for="group in store.sortedGroups"
+              :key="group.id"
+              :value="group.id"
+              :text-value="group.name"
+            >
               {{ group.name }}
               <span class="text-muted-foreground">· {{ counts[group.id] ?? 0 }}</span>
             </SelectItem>
