@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { ArrowRight, Github } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { extractIntro } from '@/lib/readme'
-import { appHref } from '@/lib/url'
 import type { AppItem } from '@/types'
 
 /**
@@ -12,8 +11,11 @@ import type { AppItem } from '@/types'
  */
 const props = defineProps<{ item: AppItem }>()
 
-/** 卡片点击去哪，这个按钮就去哪：优先 url，没填就退回仓库地址 */
-const href = computed(() => appHref(props.item))
+/**
+ * 「访问应用」只认后台填的**线上地址**，不再回退到 Git 地址 ——
+ * 回退会让两个按钮跳到同一个仓库，看不出去别。没填就不显示这个按钮。
+ */
+const appUrl = computed(() => props.item.url.trim())
 
 /** 后台手写的简介优先；没写就退回 README 摘录 */
 const description = computed(
@@ -27,7 +29,7 @@ const description = computed(
       {{ props.item.name }}
     </h2>
 
-    <!-- 左边看源码，右边直接用；「访问应用」跟卡片点击同一个目标 -->
+    <!-- 左边看源码，右边直接用；「访问应用」用的是线上地址，没填就不出现 -->
     <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
       <Button v-if="props.item.git_url" variant="github" size="sm" class="gap-1.5" as-child>
         <a
@@ -42,9 +44,9 @@ const description = computed(
         </a>
       </Button>
 
-      <Button size="sm" class="gap-1.5" as-child>
+      <Button v-if="appUrl" size="sm" class="gap-1.5" as-child>
         <a
-          :href="href"
+          :href="appUrl"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="访问应用"

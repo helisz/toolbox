@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LayoutGrid, Lock, Search } from 'lucide-vue-next'
+import { LayoutGrid, Search, UserRound } from 'lucide-vue-next'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,7 +33,7 @@ const search = defineModel<string>('search', { required: true })
 
       <Button variant="ghost" size="icon" as-child>
         <RouterLink to="/admin" aria-label="后台管理" title="后台管理">
-          <Lock class="size-4" />
+          <UserRound class="size-4" />
         </RouterLink>
       </Button>
     </div>
