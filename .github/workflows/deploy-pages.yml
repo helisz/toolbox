@@ -1,0 +1,59 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages 部署所需的最小权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 项目站点部署在 /toolbox/ 子路径下；换成自定义域名时把 VITE_BASE_PATH 改成 /
+      #
+      # 下面两个 VITE_SUPABASE_* 值随前端包一起发给浏览器，不是机密
+      # （真正的安全边界在数据库的 RLS 策略里）。想改成仓库 Variables 也可以：
+      #   env: VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      - run: npm run build:pages
+        env:
+          VITE_BASE_PATH: /toolbox/
+          VITE_SUPABASE_URL: https://ovyxdrvhfrgqzacgfeml.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92eXhkcnZoZnJncXphY2dmZW1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM1ODUzNTMsImV4cCI6MjEwOTE2MTM1M30.yYsxYGUuL5SIn1WRQkFzLTOehKIeYhhRVO9W543uzlo
+
+      # enablement: true 会在 Pages 还没启用时尝试自动打开（省掉一次手动设置）
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
