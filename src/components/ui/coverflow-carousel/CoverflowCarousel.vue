@@ -135,6 +135,20 @@ function indexAt(value: number): number {
 }
 
 /**
+ * `selected` 的唯一写入口：变了才对外报 `change`。
+ *
+ * 必须集中在一处 —— 甩动（尤其触屏）时松手会按速度多带 1~2 张，
+ * 而那些卡是 `settle` 直接跳过去的，`pointermove` 一次都没经过。
+ * 之前 `settle` 只改 `selected` 不发事件，外面的标题就停在旧的那张上，
+ * 表现就是「滑几下之后标题和卡片对不上」。
+ */
+function setSelected(index: number): void {
+  if (index === selected.value) return
+  selected.value = index
+  emit('change', toItemIndex(index))
+}
+
+/**
  * 直接写 DOM。React 版注释里那句「六十次状态更新一秒」在 Vue 里同样成立，
  * 所以这里刻意不经过 template 的响应式更新。
  */
@@ -178,7 +192,8 @@ function paint(): void {
 function settle(to: number): void {
   if (raf !== null) cancelAnimationFrame(raf)
   target = to
-  selected.value = indexAt(to)
+  // 立刻报终点：卡片还要滑一段才到位，标题不该跟着慢慢挪
+  setSelected(indexAt(to))
 
   const step = (): void => {
     const remaining = to - pos
@@ -186,6 +201,8 @@ function settle(to: number): void {
       pos = to
       paint()
       raf = null
+      // 兜底：动画收尾时以真实位置为准，任何偏差都不会留到下一次交互
+      setSelected(indexAt(pos))
       return
     }
     pos += remaining * 0.16
@@ -206,7 +223,6 @@ function goTo(index: number): void {
   // 走环上的短边，而不是绕回去
   const to = props.loop ? index + Math.round((target - index) / count) * count : index
   settle(clampPos(to))
-  emit('change', toItemIndex(indexAt(to)))
 }
 
 function nudge(by: number): void {
@@ -254,10 +270,7 @@ function onPointerMove(event: PointerEvent): void {
   current.t = now
 
   const index = indexAt(pos)
-  if (index !== selected.value) {
-    selected.value = index
-    emit('change', toItemIndex(index))
-  }
+  setSelected(index)
   paint()
 }
 
@@ -322,10 +335,7 @@ onBeforeUnmount(() => {
 watch(total, async () => {
   pos = 0
   target = 0
-  if (selected.value !== 0) {
-    selected.value = 0
-    emit('change', 0)
-  }
+  setSelected(0)
   cards.length = 0
   await nextTick()
   measure()

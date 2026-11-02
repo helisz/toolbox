@@ -632,6 +632,7 @@ router.beforeEach(async (to) => {
 
 - `edge = count/2 - distance` 在只有 1~2 张卡时会把唯一那张压暗（`count/2 = 0.5`），改成仅在 `count/2 > 1` 时做边缘淡出；
 - 原版按 `count` 决定渲染几张卡，数据只有一两条时轮播空得只剩一张 —— 补了 `repeat`：环长按可视区宽度算，`change` 事件仍只对外报真实数据下标。
+- **`selected` 只能通过 `setSelected()` 改**（第三个缺陷）：触屏甩动时松手会按速度多带 1~2 张，那些卡是 `settle()` 直接跳过去的，`pointermove` 一次都没经过。原实现里 `settle()` 只改 `selected` 不发 `change`，外面的标题就停在旧那张上 —— 表现是「手机端滑几下之后标题和卡片对不上」，桌面端因为鼠标最终位置就是落点、动量小，一直没暴露。现在 `settle()` 落点立即 `setSelected(indexAt(to))`，动画收尾时再兜一次 `setSelected(indexAt(pos))`，保证外部状态永远等于真实居中卡片。
 
 ### 5.2 后台「应用」页结构
 
