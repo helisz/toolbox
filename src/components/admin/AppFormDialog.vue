@@ -25,7 +25,14 @@ import { DEFAULT_THEME_COLOR } from '@/lib/palette'
 import { useDataStore } from '@/stores/data'
 import { itemFormSchema, type AppItem, type ItemForm } from '@/types'
 
-const props = defineProps<{ item: AppItem | null }>()
+const props = withDefaults(
+  defineProps<{
+    item: AppItem | null
+    /** 新增应用时默认归属的分组（从某个分组区块点「添加」时传入） */
+    defaultGroupId?: string
+  }>(),
+  { defaultGroupId: '' },
+)
 const open = defineModel<boolean>('open', { required: true })
 
 const store = useDataStore()
@@ -72,8 +79,8 @@ watch(open, (value) => {
     return
   }
 
-  // 新增：默认落在第一个分组（此时 props.item 已被上面的分支排除为 null）
-  form.group = store.sortedGroups[0]?.id ?? ''
+  // 新增：优先落在这个分组里点「添加」时的那一组，否则第一个分组
+  form.group = props.defaultGroupId || store.sortedGroups[0]?.id || ''
   form.name = ''
   form.git_url = ''
   form.intro = ''

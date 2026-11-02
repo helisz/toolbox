@@ -200,7 +200,8 @@ toolbox/
    │  │  └─ AppSlide.vue         # 轮播里的一张卡片：图标/名称/地址/跳转/简介
    │  └─ admin/
    │     ├─ GroupManager.vue
-   │     ├─ AppManager.vue
+   │     ├─ AppManager.vue       # 「应用」页：按应用组分段，每段一个拖拽列表
+   │     ├─ AppGroupSection.vue   # 单个分组区块（列表 + 行内启用开关 + 组内排序）
    │     ├─ AppFormDialog.vue
    │     ├─ IconPickerDialog.vue
    │     ├─ ColorPicker.vue
@@ -626,6 +627,25 @@ router.beforeEach(async (to) => {
 
 修掉的一个原版缺陷：`edge = count/2 - distance` 在只有 1~2 张卡时会把唯一那张压暗（`count/2 = 0.5`），改成仅在 `count/2 > 1` 时做边缘淡出。
 
+### 5.2 后台「应用」页结构
+
+```
+应用                                        [+ 新增应用]
+按应用组分组展示，组内可拖动排序，松手即保存
+
+Tools   1 个应用                        [+ 添加]
+  ≡ [icon] Mask Tool   顺手的马赛克工具      [开关]  ✎  🗑
+Games   2 个应用 · 1 个已停用            [+ 添加]
+  ≡ [icon] Poke Survivor …                [开关]  ✎  🗑
+Wiki    0 个应用                        [+ 添加]
+  这个分组还没有应用，点「添加」创建
+```
+
+- 原本是「应用组下拉 + 单组列表」，改成**按组分段全部铺开**：一眼能看出每个组有几个应用、有几个被停用，不用来回切下拉。
+- 每段是一个独立的 `vue-draggable-plus` 容器 + 独立的 `useReorder` 实例。排序语义本来就是「组内重排」，落库也按组内目标下标算（`moveItem(groupId, id, toIndex)`），共用一个实例反而要额外处理跨组拖拽的边界。
+- 段头的「添加」把该组 id 传给表单，新增时默认落在这一组；顶部「新增应用」仍然可用，默认落在第一个组。
+- **换组仍走编辑表单里的「归属应用组」下拉** —— 那是数据归属，不是视图筛选，两者别混。
+
 ---
 
 ## 6. Composables
@@ -634,7 +654,7 @@ router.beforeEach(async (to) => {
 |---|---|---|
 | `useTheme()` | 包 `themeStore`，暴露 `mode` / `toggle()` | 只在 `App.vue` 里调用一次，避免重复挂监听 |
 | `useReadme()` | `fetchReadme(gitUrl)` → `{ raw, intro } \| null`；`extractIntro(raw, 300)` | 10s 超时，`AbortController`，失败返回 `null`；**绝不调用任何 LLM** |
-| `useReorder<T>()` | 把 `vue-draggable-plus` 的 `onEnd` 转成 `(orderedIds: string[]) => Promise<void>`，内置乐观更新 + 失败回滚 + 拖拽中禁用按钮 | 列表项必须有稳定 `id`；拖拽手柄用 `handle` 选择器，避免误触卡片点击 |
+| `useReorder<T>()` | 把 `vue-draggable-plus` 的 `onEnd` 转成 `persist(id, toIndex)`，内置乐观更新 + 失败回滚 + 拖拽中禁用按钮 | 列表项必须有稳定 `id`；拖拽手柄用 `handle` 选择器，避免误触卡片点击；被移动项从**拖拽前快照**里取，别读已被拖拽库改过的数组 |
 | `useToast()` | 包装 `vue-sonner` 的 `toast.success/error/info` | 统一文案前缀，错误必须带可行动信息 |
 
 `lib/markdown.ts` 的安全处理：
