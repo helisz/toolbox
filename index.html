@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="团队内部应用导航站" />
+    <title>工具箱 · Toolbox</title>
+    <!-- 首屏防闪烁：在样式生效前就确定主题，避免暗色用户看到白屏闪一下 -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('toolbox-theme')
+          var dark = stored
+            ? stored === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (e) {
+          /* localStorage 不可用时按亮色渲染 */
+        }
+      })()
+    </script>
+  </head>
+  <body class="h-full antialiased">
+    <div id="app" class="h-full"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
