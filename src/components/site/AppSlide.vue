@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline'
+import { ExternalLink } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { resolveIcon } from '@/lib/heroicons'
+import { resolveIcon } from '@/lib/icons'
 import { getColorToken } from '@/lib/palette'
 import { extractIntro } from '@/lib/readme'
 import type { AppItem } from '@/types'
@@ -60,7 +60,7 @@ const tabIndex = computed(() => (props.active ? 0 : -1))
     <Button size="sm" class="mt-3 gap-1" as-child>
       <a :href="props.item.git_url" target="_blank" rel="noopener noreferrer" :tabindex="tabIndex">
         跳转
-        <ArrowTopRightOnSquareIcon class="size-3.5" />
+        <ExternalLink class="size-3.5" />
       </a>
     </Button>
 

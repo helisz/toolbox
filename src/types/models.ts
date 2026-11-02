@@ -4,7 +4,7 @@ import type { ThemeColor } from '@/lib/palette'
 export type IsoTimestamp = string
 
 /** Heroicons slug，如 `rocket-launch`、`code-bracket`。具体值域由前端注册表决定 */
-export type HeroIconSlug = string
+export type IconSlug = string
 
 export type ThemeMode = 'light' | 'dark'
 
@@ -28,7 +28,7 @@ export interface AppItem {
   intro: string
   /** 停用后前台不展示，但数据保留、后台仍可见 */
   enabled: boolean
-  hero_icon_name: HeroIconSlug
+  hero_icon_name: IconSlug
   theme_color: ThemeColor
   tags: string[]
   sort: number
@@ -63,7 +63,7 @@ export interface AppItemWrite {
   readme_raw: string
   intro: string
   enabled: boolean
-  hero_icon_name: HeroIconSlug
+  hero_icon_name: IconSlug
   theme_color: ThemeColor
   tags: string[]
   sort: number

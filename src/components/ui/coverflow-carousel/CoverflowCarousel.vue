@@ -13,7 +13,7 @@
  * 因此 `slides` 变成 `count`，图片相关字段（src/alt/meta）不再需要。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
 const props = withDefaults(
@@ -360,7 +360,7 @@ watch(
           class="absolute left-1 top-1/2 z-[200] -translate-y-1/2 rounded-full bg-background/70 p-2 text-foreground backdrop-blur transition hover:bg-background"
           @click="nudge(-1)"
         >
-          <ChevronLeftIcon class="size-5" />
+          <ChevronLeft class="size-5" />
         </button>
         <button
           type="button"
@@ -368,7 +368,7 @@ watch(
           class="absolute right-1 top-1/2 z-[200] -translate-y-1/2 rounded-full bg-background/70 p-2 text-foreground backdrop-blur transition hover:bg-background"
           @click="nudge(1)"
         >
-          <ChevronRightIcon class="size-5" />
+          <ChevronRight class="size-5" />
         </button>
       </template>
     </div>

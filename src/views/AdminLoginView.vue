@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
+import { ArrowLeft, Lock } from 'lucide-vue-next'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -63,7 +63,7 @@ async function handleSubmit(): Promise<void> {
     <div class="flex items-center justify-between px-4 py-3">
       <Button variant="ghost" size="sm" as-child class="gap-1.5">
         <RouterLink to="/">
-          <ArrowLeftIcon class="size-4" />
+          <ArrowLeft class="size-4" />
           返回前台
         </RouterLink>
       </Button>
@@ -74,7 +74,7 @@ async function handleSubmit(): Promise<void> {
       <div class="w-full max-w-sm">
         <div class="mb-6 flex flex-col items-center gap-2 text-center">
           <span class="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <LockClosedIcon class="size-5" />
+            <Lock class="size-5" />
           </span>
           <h1 class="text-lg font-semibold">管理员登录</h1>
           <p class="text-xs text-muted-foreground">只有白名单内的账号可以进入后台</p>

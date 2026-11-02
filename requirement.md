@@ -1,4 +1,4 @@
-你是资深前端工程师，基于下面需求开发一套导航站点，技术栈：Vue3 + Vite + TypeScript + TailwindCSS + shadcn-vue + Heroicons，后端使用 PocketBase 作为BaaS，不要自己写node后端。
+你是资深前端工程师，基于下面需求开发一套导航站点，技术栈：Vue3 + Vite + TypeScript + TailwindCSS + shadcn-vue + Lucide，后端使用 Supabase 作为BaaS，不要自己写node后端。
 
 ## 整体结构
 两个模块：【公开前台】【管理员后台 /admin】
@@ -58,7 +58,7 @@ fields:
 3. 应用管理页面
    - 新增 / 编辑 / 删除应用
    - 表单字段：归属应用组下拉、应用名称、git地址、图标选择器、主题色选择、标签
-   - 图标选择器：弹窗，检索Heroicons，支持关键词搜索，点击选择图标，只使用内置heroicon，不支持上传自定义图标
+   - 图标选择器：弹窗，检索 Lucide，支持关键词搜索，点击选择图标，只使用内置heroicon，不支持上传自定义图标
    - 主题色选择器：预设低对比度Tailwind色系面板，供选择
    - 标签输入：下拉选择已有标签，也可以输入新标签，新标签自动写入tag_pool
    - 【拉取README按钮】：输入git地址后，点击按钮，前端通过PocketBase的backend代理请求github raw README，拿到原文存入readme_raw；请求失败则readme_raw留空，**禁止调用LLM做摘要总结**
@@ -67,7 +67,7 @@ fields:
 
 ## UI & 代码规范
 1. 组件全部使用 shadcn-vue，<script setup> + TypeScript，类型严格定义
-2. 图标统一 Heroicons（solid/outline按需，优先outline）
+2. 图标统一 Lucide（线性风格）
 3. Tailwind配置扩展主题，配色风格对齐 claude.com，低饱和、柔和，暗黑模式不刺眼
 4. 拖拽排序使用成熟轻量vue拖拽库，不要造轮子
 5. README渲染使用轻量markdown解析，安全处理，防止XSS

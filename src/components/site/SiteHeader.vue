@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LockClosedIcon, MagnifyingGlassIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
+import { LayoutGrid, Lock, Search } from 'lucide-vue-next'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,13 +12,13 @@ const search = defineModel<string>('search', { required: true })
     <div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
       <RouterLink to="/" class="flex shrink-0 items-center gap-2 text-sm font-semibold">
         <span class="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Squares2X2Icon class="size-4" />
+          <LayoutGrid class="size-4" />
         </span>
         <span class="hidden sm:inline">工具箱</span>
       </RouterLink>
 
       <div class="relative ml-auto w-full max-w-xs">
-        <MagnifyingGlassIcon
+        <Search
           class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
@@ -33,7 +33,7 @@ const search = defineModel<string>('search', { required: true })
 
       <Button variant="ghost" size="icon" as-child>
         <RouterLink to="/admin" aria-label="后台管理" title="后台管理">
-          <LockClosedIcon class="size-4" />
+          <Lock class="size-4" />
         </RouterLink>
       </Button>
     </div>

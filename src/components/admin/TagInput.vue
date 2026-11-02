@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { XMarkIcon } from '@heroicons/vue/24/outline'
+import { X } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import type { TagOption } from '@/types'
 
@@ -69,7 +69,7 @@ function handleKeydown(event: KeyboardEvent): void {
       >
         {{ tag }}
         <button type="button" class="opacity-60 hover:opacity-100" @click="remove(tag)">
-          <XMarkIcon class="size-3" />
+          <X class="size-3" />
           <span class="sr-only">移除 {{ tag }}</span>
         </button>
       </span>

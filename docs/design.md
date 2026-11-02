@@ -52,7 +52,7 @@ Postgres 有真正的约束能力，所以「字段校验」从应用层搬到�
 | `readme_raw` | text | `≤ 200000` 字，`default ''` | README 全文；抓取失败为空串 |
 | `intro` | text | `≤ 300` 字，`default ''` | 卡片简介；拉取 README 时自动生成，**之后由用户手工维护** |
 | `enabled` | boolean | `default true` | 停用后前台不展示，后台仍可见可编辑 |
-| `hero_icon_name` | text | `~ '^[a-z0-9-]+$'`，`default 'squares-2x2'` | 存 slug；值域由前端 `HERO_ICONS` 决定 |
+| `hero_icon_name` | text | `~ '^[a-z0-9-]+$'`，`default 'layout-grid'` | 存 slug；值域由前端 `ICON_SLUGS`（Lucide）决定，老数据的老名字由 `LEGACY_ALIASES` 兜底 |
 | `theme_color` | text | `~ '^[a-z]+-[0-9]{2,3}$'`，`default 'slate-500'` | 值域由前端 `THEME_COLORS` 决定 |
 | `tags` | text[] | `coalesce(array_length(tags,1),0) <= 10` | 标签名，非 id |
 | `sort` | double precision | not null | 组内升序 |
@@ -81,7 +81,7 @@ type IsoTimestamp = string                       // Supabase 返回的 timestamp
 type GroupId      = string                       // app_group.id
 type TagName      = string                       // 归一化前的原始标签名
 type ThemeColor   = (typeof THEME_COLORS)[number]['key']
-type HeroIconSlug = keyof typeof HERO_ICONS
+type IconSlug = string
 ```
 
 ### 1.2 安全边界：RLS
@@ -166,7 +166,8 @@ toolbox/
    ├─ lib/
    │  ├─ supabase.ts             # createClient 单例 + 会话存储策略 + TABLES
    │  ├─ palette.ts              # THEME_COLORS 静态映射表（亮/暗双份类名）
-   │  ├─ heroicons.ts            # HERO_ICONS 注册表 + slug 转换
+   │  ├─ icons.ts                # Lucide 图标：glob 按需 chunk + 老 slug 别名
+   │  ├─ icon-presets.ts        # 选择器常用图标（静态，119 个）
    │  ├─ markdown.ts             # markdown-it + DOMPurify + 相对链接改写
    │  ├─ readme.ts               # git URL → raw 候选 → 抓取 → 摘录提取
    │  ├─ sort.ts                 # computeSortValue / planMove
@@ -220,10 +221,10 @@ toolbox/
 
 ```ts
 import type { THEME_COLORS } from '@/lib/palette'
-import type { HERO_ICONS } from '@/lib/heroicons'
+import { ICON_SLUGS } from '@/lib/icons'
 
 export type ThemeColor = (typeof THEME_COLORS)[number]['key']
-export type HeroIconSlug = keyof typeof HERO_ICONS
+export type IconSlug = string
 
 /** Supabase 返回的 timestamptz 是 ISO 字符串 */
 export type IsoTimestamp = string
@@ -244,7 +245,7 @@ export interface AppItem {
   git_url: string
   /** 完整 README 原文，抓取失败为空串 */
   readme_raw: string
-  hero_icon_name: HeroIconSlug
+  hero_icon_name: IconSlug
   theme_color: ThemeColor
   tags: string[]
   sort: number
@@ -344,31 +345,55 @@ export function getColorToken(key: string): ColorToken {
 }
 ```
 
-### `src/lib/heroicons.ts`（片段）
+### `src/lib/icons.ts`（Lucide，按需 chunk）
 
 ```ts
-import type { Component } from 'vue'
-import * as OutlineIcons from '@heroicons/vue/24/outline'
+import { defineAsyncComponent, type Component } from 'vue'
 
-const toSlug = (name: string) =>
-  name.replace(/Icon$/, '').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+const ICON_DIR = '/node_modules/lucide-vue-next/dist/esm/icons/'
 
-export const HERO_ICONS: Record<string, Component> = Object.fromEntries(
-  Object.entries(OutlineIcons)
-    .filter(([name]) => name.endsWith('Icon'))
-    .map(([name, comp]) => [toSlug(name), comp as Component]),
-)
+// 每个图标一个独立小文件，只有真正渲染到的才会被下载
+const iconModules = import.meta.glob('/node_modules/lucide-vue-next/dist/esm/icons/*.js') as Record<
+  string,
+  () => Promise<{ default: Component }>
+>
 
-export const HERO_ICON_SLUGS = Object.keys(HERO_ICONS).sort()
+export const ICON_SLUGS = Object.keys(iconModules)
+  .map((path) => path.slice(ICON_DIR.length).replace(/\.js$/, ''))
+  .sort()
 
-/** 需求文案里的示例是 "rocket"，Heroicons 2 里叫 RocketLaunch —— 兜底到默认图标 */
-export const DEFAULT_ICON = 'squares-2x2'
-export function resolveIcon(slug: string): Component {
-  return HERO_ICONS[slug] ?? HERO_ICONS[DEFAULT_ICON]
+export const DEFAULT_ICON_SLUG = 'layout-grid'
+
+/** 老数据存的是 Heroicons 的名字，读的时候翻译成 Lucide */
+const LEGACY_ALIASES = {
+  'squares-2x2': 'layout-grid',
+  'paper-airplane': 'send',
+  'cog6-tooth': 'settings',
+  'rocket-launch': 'rocket',
+  // …约 90 条，覆盖历史数据可能出现的老名字
+}
+
+const cache = new Map<string, Component>()
+
+export function resolveIcon(slug?: string | null): Component {
+  const key = normalize(slug) // 命中 Lucide 名字 → 别名 → 兜底
+  if (cache.has(key)) return cache.get(key)!
+  const component = defineAsyncComponent(() =>
+    iconModules[ICON_DIR + key + '.js']!().then((mod) => mod.default),
+  )
+  cache.set(key, component)
+  return component
 }
 ```
 
-> 代价：`import * as` 让 tree-shaking 失效，24/outline 约 300 个图标全进包（估计 +60~100 KB gzip）。换来的是「图标选择器可以检索全量 + 后端只存 slug」。可接受的取舍；如果之后要压体积，改成构建期生成按需 import 的映射表。
+要点：
+
+- **不用全量桶**。Lucide 有 1700+ 个图标，`import * as` 会让 tree-shaking 失效；改成 `import.meta.glob` 后每个图标是一个几百字节的按需 chunk，页面只用 3 个就只下 3 个。
+- **`resolveIcon` 仍然同步返回**，靠 `defineAsyncComponent` 把下载推迟到真正渲染时，调用方（`AppIcon`、`AppSlide`）代码不用改成 `await`。
+- **历史数据兼容**：库里存的是 Heroicons 的 slug（`cog6-tooth`、`paper-airplane`、`squares-2x2`），`LEGACY_ALIASES` 把它们翻成语义相同的 Lucide 图标，否则老应用会集体退化成默认图标。
+- **选择器要成片显示图标**，逐个懒加载会瞬间发几百个请求，所以常用 119 个在 `src/lib/icon-presets.ts` 里静态引入（一个小 chunk），搜索时才走懒加载并限制最多渲染 60 个。
+
+> 代价：`ICON_SLUGS`（1705 个名字）+ glob 映射表常驻主包，约 +30 KB gzip；换来图标本体不进包、选择器能检索全量。相比之前 Heroicons 全量注册（一次性 +60~100 KB）更省。
 
 ### `src/lib/readme.ts`（摘录提取规则）
 
@@ -639,7 +664,7 @@ export function renderReadme(raw: string, baseUrl: string): string {
 |---|---|---|
 | 三张表全量拉取 + realtime 全表订阅 | 每次改动都回拉整表，流量随数据量线性增长 | 单表 > 5000 行时改成「按组查询 + 分页」 |
 | 前端直连 GitHub raw | 私有库 / GitLab / Gitee（部分可用）/ 自建 Git 抓不到，失败留空 | 需要覆盖内网 Git 时，才引入 Supabase Edge Function 做代理 |
-| Heroicons 全量注册 | 包体 +60~100 KB gzip | 首屏预算紧时改构建期按需映射 |
+| Lucide 1705 个图标 | 名字表 + glob 映射常驻主包（~+30 KB gzip），图标本体按需下载 | 已按需拆分，无需再动 |
 | `admins` 只能用 SQL 维护 | 加管理员要登 Supabase 后台 | 管理员多于 3 人时写个 RPC + 后台页面 |
 | 搜索在客户端做 | 数据量大时首屏要全量加载 | 需要全文检索时上 `pg_trgm` + RPC |
 | 标签写入与 item 写入不是同一事务 | 极端情况下 item 写成功但标签池没入池 | 需要强一致时封装一个 Postgres 函数用 RPC 调用 |
@@ -661,7 +686,7 @@ export function renderReadme(raw: string, baseUrl: string): string {
 1. **`reorder*(orderedIds)` → `move*(id, toIndex)`**：拖拽事件本身就知道被移动项与目标下标，传完整顺序还要在 store 里做数组 diff。
 2. **调色板 `ring` → `bar`**：需要的是 `hover:` 状态下的装饰条，而 `hover:ring-slate-500/20` 这样的类名源码里不存在，Tailwind 会直接丢掉；改成不带变体前缀的 `bar`，由组件加 `group-hover:` 控制显隐。
 3. **`SortableList` 是薄封装**：`vue-draggable-plus` 的默认插槽传的是实例而不是 `{ element, index }`，条目由使用方 `v-for`；被移动项从**拖拽前快照**按 `oldIndex` 取。
-4. **shadcn-vue 组件取自官方 registry**（`https://shadcn-vue.com/r/styles/new-york/*.json`），图标从 lucide 换成 Heroicons。
+4. **shadcn-vue 组件取自官方 registry**（`https://shadcn-vue.com/r/styles/new-york/*.json`），图标换成 Lucide（lucide-vue-next），与组件库默认一致。
 5. **不依赖 vee-validate**：表单校验直接用 `zod` + `safeParse`。
 6. **订阅引用计数**：`subscribe()` 返回幂等释放函数，前后台同时订阅时任何一方卸载都不会拆掉另一方的监听。
 7. **启动流程拆成 `main.ts` + `bootstrap.ts`**：`supabase.ts` 在模块求值期校验 env，静态 import 时报错发生在 main 函数体之前，用户只能看到白屏。改成 `await import('./bootstrap')` 并 catch，缺变量时渲染一页带变量名与修复步骤的提示。

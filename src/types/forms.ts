@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { THEME_COLORS } from '@/lib/palette'
 import type { ThemeColor } from '@/lib/palette'
-import type { HeroIconSlug } from './models'
+import type { IconSlug } from './models'
 
 export const groupFormSchema = z.object({
   name: z.string().trim().min(1, '请输入应用组名称').max(60, '最多 60 个字'),
@@ -17,7 +17,7 @@ const themeColorSchema = z.custom<ThemeColor>(
   { message: '请选择一个主题色' },
 )
 
-const heroIconSchema = z.custom<HeroIconSlug>(
+const heroIconSchema = z.custom<IconSlug>(
   (value) => typeof value === 'string' && value.trim().length > 0,
   { message: '请选择图标' },
 )

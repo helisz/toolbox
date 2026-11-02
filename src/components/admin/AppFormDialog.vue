@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import {
-  ArrowPathIcon,
-  CheckIcon,
-  Squares2X2Icon,
-} from '@heroicons/vue/24/outline'
+import { Check, LayoutGrid, RefreshCw } from 'lucide-vue-next'
 import ColorPicker from '@/components/admin/ColorPicker.vue'
 import IconPickerDialog from '@/components/admin/IconPickerDialog.vue'
 import TagInput from '@/components/admin/TagInput.vue'
@@ -24,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useReadme } from '@/composables/useReadme'
 import { useToast } from '@/composables/useToast'
-import { DEFAULT_ICON_SLUG, resolveIcon } from '@/lib/heroicons'
+import { DEFAULT_ICON_SLUG, resolveIcon } from '@/lib/icons'
 import { DEFAULT_THEME_COLOR } from '@/lib/palette'
 import { useDataStore } from '@/stores/data'
 import { itemFormSchema, type AppItem, type ItemForm } from '@/types'
@@ -187,7 +183,7 @@ async function submit(): Promise<void> {
           <div class="flex gap-2">
             <Input id="item-git" v-model="form.git_url" placeholder="https://github.com/owner/repo" />
             <Button type="button" variant="outline" :disabled="pulling" @click="pullReadme">
-              <ArrowPathIcon :class="['size-4', pulling && 'animate-spin']" />
+              <RefreshCw :class="['size-4', pulling && 'animate-spin']" />
               {{ pulling ? '抓取中…' : '拉取 README' }}
             </Button>
           </div>
@@ -234,10 +230,10 @@ async function submit(): Promise<void> {
             >
               <span class="flex size-5 items-center justify-center">
                 <component :is="currentIcon" v-if="form.hero_icon_name" class="size-4" />
-                <Squares2X2Icon v-else class="size-4" />
+                <LayoutGrid v-else class="size-4" />
               </span>
               <span class="truncate text-xs">{{ form.hero_icon_name || '选择图标' }}</span>
-              <CheckIcon v-if="form.hero_icon_name" class="ml-auto size-3.5 opacity-50" />
+              <Check v-if="form.hero_icon_name" class="ml-auto size-3.5 opacity-50" />
             </Button>
           </div>
 

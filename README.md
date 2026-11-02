@@ -2,7 +2,7 @@
 
 团队内部应用导航站：前台公开浏览卡片、搜索、看 README；后台 `/admin` 管理应用组、应用与标签。
 
-- 技术栈：Vue 3 + Vite + TypeScript + Tailwind v4 + shadcn-vue（reka-ui）+ Heroicons + Pinia
+- 技术栈：Vue 3 + Vite + TypeScript + Tailwind v4 + shadcn-vue（reka-ui）+ Lucide + Pinia
 - 后端：Supabase（Postgres + RLS + Auth + Realtime），**没有自建 Node 后端**
 - 设计决策与数据模型：[docs/design.md](docs/design.md)
 
@@ -77,7 +77,7 @@ npm run dev        # http://localhost:5173
 
 - Supabase Auth 登录 + `admins` 表校验，守卫拦截未登录/非管理员
 - 应用组：增删改 + 拖拽排序（松手即写库）
-- 应用：增删改、图标选择器（可搜索全量 Heroicons）、主题色面板、标签输入（新标签自动入池）
+- 应用：增删改、图标选择器（可搜索全量 Lucide，1705 个）、主题色面板、标签输入（新标签自动入池）
 - 「拉取 README」：浏览器直连 GitHub raw 取原文，**自动生成卡片简介**（可手工改，改过的不会被再拉取覆盖），失败留空，**不做任何 LLM 摘要**
 - 每行一颗开关，随时**启用/停用**：停用后前台立刻消失，数据保留
 
@@ -110,6 +110,6 @@ npm run dev        # http://localhost:5173
 ## 已知限制
 
 - README 只能从公开 GitHub 仓库抓取；私有库 / 部分 GitLab/Gitee 仓库 / 自建 Git 会失败并留空。
-- Heroicons 全量注册，首屏多 ~60 KB（gzip）；预算紧时改成构建期按需映射。
+- 图标用 Lucide 的 1705 个图标，但没有全量打包：每个图标是按需 chunk，页面用到几个才下几个；代价是图标名字表常驻主包（~+30 KB gzip）。
 - 管理员只能在 Supabase 里用 SQL 维护 `admins` 表，没有后台页面。
 - 单表超过约 5000 行时，应把「全量拉取 + 全表订阅」改成「按组查询 + 分页」。

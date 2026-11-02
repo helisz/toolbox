@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { XMarkIcon } from '@heroicons/vue/24/outline'
+import { X } from 'lucide-vue-next'
 import EmptyState from '@/components/common/EmptyState.vue'
 import AppSlide from '@/components/site/AppSlide.vue'
 import SiteHeader from '@/components/site/SiteHeader.vue'
@@ -135,7 +135,7 @@ function clearSearch(): void {
             aria-label="清除搜索"
             @click="clearSearch"
           >
-            <XMarkIcon class="size-3.5" />
+            <X class="size-3.5" />
           </button>
         </div>
 

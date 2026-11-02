@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import {
-  Bars3Icon,
-  FolderPlusIcon,
-  PencilSquareIcon,
-  TrashIcon,
-} from '@heroicons/vue/24/outline'
+import { FolderPlus, GripVertical, SquarePen, Trash2 } from 'lucide-vue-next'
 import SortableList from '@/components/admin/SortableList.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { Button } from '@/components/ui/button'
@@ -128,7 +123,7 @@ async function handleEnd(event: ReorderEvent): Promise<void> {
         <p class="text-xs text-muted-foreground">拖动左侧手柄调整顺序，松手即保存</p>
       </div>
       <Button size="sm" class="gap-1.5" @click="openCreate">
-        <FolderPlusIcon class="size-4" />
+        <FolderPlus class="size-4" />
         新增应用组
       </Button>
     </div>
@@ -148,7 +143,7 @@ async function handleEnd(event: ReorderEvent): Promise<void> {
         class="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5"
       >
         <button type="button" class="drag-handle cursor-grab text-muted-foreground/60" aria-label="拖动排序">
-          <Bars3Icon class="size-4" />
+          <GripVertical class="size-4" />
         </button>
 
         <span class="min-w-0 flex-1 truncate text-sm">{{ group.name }}</span>
@@ -157,10 +152,10 @@ async function handleEnd(event: ReorderEvent): Promise<void> {
         </span>
 
         <Button variant="ghost" size="icon-sm" aria-label="重命名" @click="openEdit(group.id, group.name)">
-          <PencilSquareIcon class="size-4" />
+          <SquarePen class="size-4" />
         </Button>
         <Button variant="ghost" size="icon-sm" aria-label="删除" @click="askDelete(group.id)">
-          <TrashIcon class="size-4" />
+          <Trash2 class="size-4" />
         </Button>
       </div>
     </SortableList>

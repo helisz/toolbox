@@ -13,12 +13,12 @@
     "check:db": "node scripts/check-db.mjs"
   },
   "dependencies": {
-    "@heroicons/vue": "^2.2.0",
     "@supabase/supabase-js": "^2.118.0",
     "@vueuse/core": "^12.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.3",
+    "lucide-vue-next": "^1.0.0",
     "markdown-it": "^14.1.0",
     "pinia": "^2.3.0",
     "reka-ui": "^2.2.0",

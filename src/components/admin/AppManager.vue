@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Bars3Icon, PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import { GripVertical, Plus, SquarePen, Trash2 } from 'lucide-vue-next'
 import AppFormDialog from '@/components/admin/AppFormDialog.vue'
 import SortableList from '@/components/admin/SortableList.vue'
 import AppIcon from '@/components/common/AppIcon.vue'
@@ -133,7 +133,7 @@ async function toggleEnabled(item: AppItem, enabled: boolean): Promise<void> {
         </Select>
 
         <Button size="sm" class="gap-1.5" :disabled="!store.sortedGroups.length" @click="openCreate">
-          <PlusIcon class="size-4" />
+          <Plus class="size-4" />
           新增应用
         </Button>
       </div>
@@ -164,7 +164,7 @@ async function toggleEnabled(item: AppItem, enabled: boolean): Promise<void> {
         class="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5"
       >
         <button type="button" class="drag-handle cursor-grab text-muted-foreground/60" aria-label="拖动排序">
-          <Bars3Icon class="size-4" />
+          <GripVertical class="size-4" />
         </button>
 
         <AppIcon :icon="item.hero_icon_name" :color="item.theme_color" size="sm" />
@@ -203,10 +203,10 @@ async function toggleEnabled(item: AppItem, enabled: boolean): Promise<void> {
         </div>
 
         <Button variant="ghost" size="icon-sm" aria-label="编辑" @click="openEdit(item)">
-          <PencilSquareIcon class="size-4" />
+          <SquarePen class="size-4" />
         </Button>
         <Button variant="ghost" size="icon-sm" aria-label="删除" @click="askDelete(item)">
-          <TrashIcon class="size-4" />
+          <Trash2 class="size-4" />
         </Button>
       </div>
     </SortableList>

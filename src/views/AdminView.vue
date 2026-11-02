@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeftStartOnRectangleIcon, HomeIcon } from '@heroicons/vue/24/outline'
+import { House, LogOut } from 'lucide-vue-next'
 import AppManager from '@/components/admin/AppManager.vue'
 import GroupManager from '@/components/admin/GroupManager.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
@@ -45,12 +45,12 @@ async function logout(): Promise<void> {
           <ThemeToggle />
           <Button variant="ghost" size="sm" as-child class="gap-1.5">
             <RouterLink to="/">
-              <HomeIcon class="size-4" />
+              <House class="size-4" />
               <span class="hidden sm:inline">前台</span>
             </RouterLink>
           </Button>
           <Button variant="ghost" size="sm" class="gap-1.5" @click="logout">
-            <ArrowLeftStartOnRectangleIcon class="size-4" />
+            <LogOut class="size-4" />
             <span class="hidden sm:inline">退出</span>
           </Button>
         </div>

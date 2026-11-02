@@ -2,7 +2,7 @@
 import type { Component } from 'vue'
 import { computed } from 'vue'
 import { getColorToken } from '@/lib/palette'
-import { resolveIcon } from '@/lib/heroicons'
+import { resolveIcon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 const props = withDefaults(

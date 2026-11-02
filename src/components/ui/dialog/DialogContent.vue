@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DialogContentEmits, DialogContentProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
-import { XMarkIcon } from '@heroicons/vue/24/outline'
+import { X } from 'lucide-vue-next'
 import { reactiveOmit } from '@vueuse/core'
 import {
   DialogClose,
@@ -39,7 +39,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       <DialogClose
         class="absolute right-4 top-4 rounded-sm opacity-60 transition-opacity hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring disabled:pointer-events-none"
       >
-        <XMarkIcon class="size-4" />
+        <X class="size-4" />
         <span class="sr-only">关闭</span>
       </DialogClose>
     </DialogContent>
