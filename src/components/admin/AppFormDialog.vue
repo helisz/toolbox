@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { Image as ImageIcon, LoaderCircle, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
-import ColorPicker from '@/components/admin/ColorPicker.vue'
 import TagInput from '@/components/admin/TagInput.vue'
-import AppIcon from '@/components/common/AppIcon.vue'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useReadme } from '@/composables/useReadme'
 import { useToast } from '@/composables/useToast'
+import { COVER_PRESETS } from '@/lib/cover-presets'
 import { DEFAULT_ICON_SLUG } from '@/lib/icons'
 import { DEFAULT_THEME_COLOR } from '@/lib/palette'
 import { coverUrl, uploadCover } from '@/lib/storage'
@@ -47,6 +46,10 @@ const form = reactive<ItemForm>({
   image_path: '',
   intro: '',
   hero_icon_name: DEFAULT_ICON_SLUG,
+  /**
+   * 主题色不再让用户选（卡片改成封面图了），但字段还在数据模型里：
+   * 没有封面的老数据仍然靠它给图标色块上色，所以照旧原样提交。
+   */
   theme_color: DEFAULT_THEME_COLOR,
   tags: [],
 })
@@ -63,6 +66,10 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const isEditing = computed(() => props.item !== null)
 const readmeSize = computed(() => readmeRaw.value.length)
 const introSize = computed(() => form.intro.length)
+/** 当前选中的是不是预设封面（是的话可以高亮那张缩略图） */
+const activePreset = computed(() =>
+  COVER_PRESETS.some((preset) => preset.id === form.image_path) ? form.image_path : '',
+)
 
 watch(open, (value) => {
   if (!value) return
@@ -299,7 +306,7 @@ async function submit(): Promise<void> {
                   @click="fileInput?.click()"
                 >
                   <Upload class="size-3.5" />
-                  {{ form.image_path ? '更换图片' : '选择图片' }}
+                  {{ form.image_path ? '更换图片' : '上传自己的图片' }}
                 </Button>
                 <Button
                   v-if="form.image_path"
@@ -314,47 +321,49 @@ async function submit(): Promise<void> {
                 </Button>
               </div>
               <p class="text-[11px] text-muted-foreground">
-                不论原图多大，都会<b class="font-medium text-foreground">居中裁成 2:3、压到 600×900 的 WebP</b>
-                再上传（约 30~80KB）。比例不对也没关系，只会切掉两侧或上下的一部分。
+                上传的图一律<b class="font-medium text-foreground">居中裁成 2:3、压到 600×900 的 WebP</b>
+                （约 30~80KB）。不想找图就直接从下面挑一张。
               </p>
               <p v-if="uploadError" class="text-[11px] text-destructive">{{ uploadError }}</p>
             </div>
           </div>
+
+          <!-- 预设封面：打包在仓库里的静态图，选了不占存储、也不上传 -->
+          <div class="space-y-2 pt-1">
+            <Label class="text-xs text-muted-foreground">或从预设里选（{{ COVER_PRESETS.length }} 张）</Label>
+            <div class="grid grid-cols-4 gap-2 sm:grid-cols-6">
+              <button
+                v-for="preset in COVER_PRESETS"
+                :key="preset.id"
+                type="button"
+                :title="'使用预设封面'"
+                :aria-label="'使用预设封面'"
+                :aria-pressed="activePreset === preset.id"
+                :class="[
+                  'aspect-[2/3] overflow-hidden rounded-md border bg-muted transition',
+                  activePreset === preset.id
+                    ? 'border-primary ring-2 ring-primary/40'
+                    : 'border-border hover:border-primary/60 hover:ring-1 hover:ring-primary/20',
+                ]"
+                @click="form.image_path = preset.id"
+              >
+                <img
+                  :src="preset.url"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  class="size-full object-cover"
+                />
+              </button>
+            </div>
+          </div>
+
           <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onPickFile" />
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div class="space-y-1.5">
-            <Label>主题色</Label>
-            <ColorPicker v-model="form.theme_color" />
-          </div>
-
-          <div class="space-y-1.5">
-            <Label>标签</Label>
-            <TagInput v-model="form.tags" :options="store.tagOptions" />
-          </div>
-        </div>
-
-        <div class="flex items-start gap-2 rounded-lg border bg-muted/30 p-3">
-          <div v-if="form.image_path" class="h-[72px] w-12 shrink-0 overflow-hidden rounded">
-            <img :src="coverUrl(form.image_path)" alt="" class="size-full object-cover" />
-          </div>
-          <AppIcon v-else :icon="form.hero_icon_name" :color="form.theme_color" size="sm" />
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium">{{ form.name || '应用名称预览' }}</p>
-            <p
-              v-if="form.url || form.git_url"
-              class="truncate font-mono text-[11px] text-muted-foreground/70"
-            >
-              {{ (form.url || form.git_url).replace(/^https?:\/\//i, '').replace(/\.git$/i, '') }}
-            </p>
-            <p class="line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">
-              {{ form.intro || '简介预览：前台卡片最多显示三行' }}
-            </p>
-            <p class="mt-1 truncate text-[11px] text-muted-foreground">
-              {{ form.tags.length ? form.tags.join(' · ') : '暂无标签' }}
-            </p>
-          </div>
+        <div class="space-y-1.5">
+          <Label>标签</Label>
+          <TagInput v-model="form.tags" :options="store.tagOptions" />
         </div>
 
         <p v-if="errorMessage" class="text-xs text-destructive">{{ errorMessage }}</p>

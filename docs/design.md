@@ -205,8 +205,7 @@ toolbox/
    │     ├─ GroupManager.vue
    │     ├─ AppManager.vue       # 「应用」页：按应用组分段，每段一个拖拽列表
    │     ├─ AppGroupSection.vue   # 单个分组区块（列表 + 行内启用开关 + 组内排序）
-   │     ├─ AppFormDialog.vue     # 表单，含封面图上传（Supabase Storage）
-   │     ├─ ColorPicker.vue
+   │     ├─ AppFormDialog.vue     # 表单：封面图（上传或选预设）、标签、README 抓取
    │     ├─ TagInput.vue
    │     └─ SortableList.vue     # 拖拽容器，前台后台复用
    └─ views/
@@ -613,7 +612,8 @@ router.beforeEach(async (to) => {
         顺手的马赛克工具（最多三行，居中）
 ```
 
-- **卡片是一张 2:3 的封面图**（`object-cover` 裁切，宽 `clamp(132px,15vw,168px)` → 高 `clamp(198px,22.5vw,252px)`），点了直接打开这个应用：`url` 优先，空则退回 `git_url`。没传封面的老数据回退成「图标色块」，不会开天窗。
+- **卡片是一张 2:3 的封面图**（`object-cover` 裁切，宽 `clamp(156px,18.5vw,208px)` → 高 `clamp(234px,27.75vw,312px)`），点了直接打开这个应用：`url` 优先，空则退回 `git_url`。没传封面的老数据回退成「图标色块」，不会开天窗。
+- **卡片的立体感靠 `depth` / `perspective` 制造**：`translateZ(-depth * 宽 * ramp)` + `perspective` 让邻卡等比缩小。当前 `depth=1`、`perspective=2.3`、`gap=0`，实测中心 208px、第一张邻卡 136px（0.65 倍）、最边缘 101px，且相邻卡片**有意重叠约 20px**（`gap=0` + 透视收拢）。这是刻意的：中心那张要明显地"抬起来"。
 - 应用名、两个动作按钮、三行简介都在**卡片外面、下方居中**，由 `AppInfoPanel` 渲染，且只显示当前居中那张卡对应的应用。不再单独显示一行仓库地址（`displayHref()` 随之删掉，地址只在按钮的 `href` 里）。
 - 两个按钮：左「GitHub」用自定义 `variant="github"`（`bg-neutral-900 text-white`，亮/暗主题下都是那块黑底，保持品牌感）跳 `git_url`；右「访问应用」用主色 `default` 变体 + `ArrowRight` 右箭头，跳 `appHref()` —— 和点卡片同一个目标。`git_url` 为空时左边按钮整个不渲染。
 - **应用太少就循环铺满**：`repeat` 打开时组件按「可视区宽度 / 每张卡占位」把环补长（最少 5 张），父组件用 `index % items.length` 取内容。少于 5 个应用时铺满且隐藏分页点（下标会重复，点没意义）；5 个以上正常渲染并显示分页点。
@@ -661,8 +661,15 @@ Wiki    0 个应用                        [+ 添加]
 - 选完文件**立刻上传**，拿到路径先放在表单里，点「保存」才写库。好处是保存时不会卡着大文件上传；代价是用户中途取消会留一个孤儿对象（无关功能，桶里多几个文件而已）。
 - 客户端统一处理成**定尺寸 600×900 的 WebP**（quality 0.82）：按 `object-cover` 语义先算「填满 2:3 需要多大一块源图」，再从中心取这块画进 600×900 画布。比例不对的图不会被拉扁，只会切掉两侧或上下的一部分，和前台看到的一致。定死尺寸的收益是体积可控 —— 一张封面永远 30~80KB，谁传了 8MB 的原图首页也不会多下几 MB。
 - 只接受 JPG / PNG / WebP / AVIF / GIF（GIF 只保留第一帧）；SVG 明确拒绝并提示先导出位图，避免把矢量图栅格化成 600×900 的糊图。
-- 换封面或删应用时顺手删旧对象（`removeCover`，失败静默）：不给存储桶无限长胖的机会。
+- 换封面或删应用时顺手删旧对象（`removeCover`，失败静默）：不给存储桶无限长胖的机会。**预设封面走的是另一条路**，见下。
 - 失败文案都翻译成了可行动的句子：桶不存在 → 提示重跑 `schema.sql`；没权限 → 提示 uid 未写入 `admins`。
+
+#### 预设封面（`preset:` 记号）
+
+- `src/images/placeholder_icons/*.webp` 里 9 张图，**在仓库里就已经是 600×900 WebP**（和上传产物同规格，共约 110KB），随包发布。
+- 选中预设时 `image_path` 存的是记号 `preset:<文件名>`，不是 Storage 路径。`coverUrl()` 见到 `preset:` 前缀就去 `COVER_PRESETS` 里查打包地址，其余照旧拼 Supabase 公开地址 —— 前台/后台都只调 `coverUrl()`，不需要知道区别。
+- 因此选预设**不产生上传请求、不占桶、也删不掉**：`removeCover()` 见到 `preset:` 直接返回（没有对象可删）。
+- 预设列表由 `import.meta.glob` 扫目录得到，加图只要把 600×900 WebP 丢进那个目录，不用改代码。
 
 ---
 

@@ -196,11 +196,12 @@ function clearSearch(): void {
           :count="items.length"
           :repeat="shouldRepeat"
           class="w-full"
-          card-width="clamp(132px, 15vw, 168px)"
-          card-height="clamp(198px, 22.5vw, 252px)"
-          :gap="0.08"
-          :rotate="40"
-          :depth="0.5"
+          card-width="clamp(156px, 18.5vw, 208px)"
+          card-height="clamp(234px, 27.75vw, 312px)"
+          :gap="0"
+          :rotate="44"
+          :depth="1"
+          :perspective="2.3"
           show-navigation
           show-pagination
           :label="searching ? '搜索结果轮播' : `${activeGroup?.name ?? '应用'}轮播`"

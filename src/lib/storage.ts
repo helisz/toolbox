@@ -1,3 +1,4 @@
+import { isPresetCover, presetCoverUrl } from '@/lib/cover-presets'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -50,13 +51,15 @@ export async function uploadCover(file: File): Promise<string> {
 
 /** 删图是「尽力而为」：图还在、数据已经指向新图时不能因为删失败就报错 */
 export async function removeCover(path?: string | null): Promise<void> {
-  if (!path) return
+  // 预设封面是打包进仓库的静态图，没有对象可删
+  if (!path || isPresetCover(path)) return
   await supabase.storage.from(COVER_BUCKET).remove([path])
 }
 
-/** 公开地址：桶是 public，直接拼，不需要签名 */
+/** 公开地址：桶是 public，直接拼，不需要签名；预设封面走打包地址 */
 export function coverUrl(path?: string | null): string {
   if (!path) return ''
+  if (isPresetCover(path)) return presetCoverUrl(path)
   return supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
