@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { AppWindow, Github } from 'lucide-vue-next'
+import { ArrowRight, Github } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { extractIntro } from '@/lib/readme'
 import { appHref } from '@/lib/url'
@@ -50,7 +50,7 @@ const description = computed(
           aria-label="访问应用"
           title="访问应用"
         >
-          <AppWindow class="size-4" />
+          <ArrowRight class="size-4" />
           访问应用
         </a>
       </Button>
