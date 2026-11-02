@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { X } from 'lucide-vue-next'
+import { LoaderCircle, X } from 'lucide-vue-next'
 import EmptyState from '@/components/common/EmptyState.vue'
 import AppInfoPanel from '@/components/site/AppInfoPanel.vue'
 import AppSlide from '@/components/site/AppSlide.vue'
 import SiteHeader from '@/components/site/SiteHeader.vue'
 import { CoverflowCarousel } from '@/components/ui/coverflow-carousel'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useDataStore } from '@/stores/data'
 import type { AppItem } from '@/types'
 
@@ -169,16 +168,15 @@ function clearSearch(): void {
         {{ store.error }}
       </div>
 
-      <!-- 首屏骨架 -->
-      <div v-if="store.loading" class="flex items-center justify-center gap-4 py-6">
-        <Skeleton
-          v-for="index in 3"
-          :key="index"
-          :class="[
-            'size-[clamp(140px,17vw,180px)] rounded-2xl',
-            index === 2 ? 'opacity-40' : index === 1 ? 'opacity-70' : '',
-          ]"
-        />
+      <!-- 首屏就是一个转圈，不铺骨架卡片：加载通常只有一两百毫秒，骨架闪一下反而更乱 -->
+      <div
+        v-if="store.loading"
+        class="flex flex-col items-center gap-3 py-10 text-muted-foreground"
+        role="status"
+        aria-live="polite"
+      >
+        <LoaderCircle class="size-6 animate-spin" aria-hidden="true" />
+        <p class="text-xs">加载中…</p>
       </div>
 
       <EmptyState
