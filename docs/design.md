@@ -620,6 +620,10 @@ router.beforeEach(async (to) => {
 - **轮播贴满屏宽**：`main` 自己不带左右内边距（`px` 交给各块自己加），所以移动端轮播从 x=0 到屏宽、卡片在边缘被 `overflow-hidden` 裁掉；桌面端由 `max-w-5xl` 兜住，不会无限拉宽。分组下拉、信息区、提示文字各自 `px-4`。
 - **信息区全程可见**：不做「拖动时隐藏、停稳再显示」——那会让人一直等着轮播动画（还要加上甩动的滑行）才看到文字。改成内容单独处理：`activeIndex` 一变就立刻换文字，靠 `<div :key="activeItem.id" class="animate-fade-in">` 只在新内容上播 100ms 淡入（`opacity .35 → 1`，不从 0 起，快速拖动时不会闪成空白）。简介块固定三行高度（`min-h-[3.75rem]`），换应用时下方内容不会上下跳。
 - **没有详情弹窗**：简介就是后台维护的 `intro`，README 全文不再渲染到前台（`lib/markdown.ts` 因此暂时没有调用方，保留着以备将来恢复详情页）。
+- **记住上次看的分组**：选中即写 `localStorage['toolbox-group']`（组 id），下次进首页直接回到那一组。两个坑：
+  1. 记住的 id 也算「用户选过」（`userPicked = Boolean(storedId)`），否则默认规则「第一个有应用的组」每次刷新都会把它顶回去；
+  2. 数据还没到位时 `sortedGroups` 是空的，`pickDefaultGroup()` 里**不能**把 `activeGroupId` 清成空串 —— 清掉之后 userPicked 的校验会判它「不存在」，于是又被默认组覆盖（这是实测踩到的）。所以空数组时直接 `return`，等数据到位再校验。
+  存之前还要确认这个组真实存在：组被删了就回退到第一个组，并把新 id 覆盖回存储。
 - 非居中卡片的内部链接 `pointer-events-none` 且 `tabindex="-1"`，点一下只是把它转到中间，避免误跳；拖拽超过 6px 后 `click.capture` 会吞掉那次点击。
 
 轮播本身在 `components/ui/coverflow-carousel/CoverflowCarousel.vue`，是 `docs/carousel.md` 里 React 版的移植，三处**必须**保留的实现细节：

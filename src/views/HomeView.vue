@@ -12,8 +12,30 @@ import type { AppItem } from '@/types'
 
 const store = useDataStore()
 
+/** 记住的分组 id：下次打开直接回到上次看的那一组 */
+const GROUP_STORAGE_KEY = 'toolbox-group'
+
+function readStoredGroupId(): string {
+  try {
+    return window.localStorage.getItem(GROUP_STORAGE_KEY)?.trim() ?? ''
+  } catch {
+    /* 隐私模式下 localStorage 可能抛错 */
+    return ''
+  }
+}
+
+function writeStoredGroupId(id: string): void {
+  try {
+    window.localStorage.setItem(GROUP_STORAGE_KEY, id)
+  } catch {
+    /* 存不下就算了，不影响当前会话 */
+  }
+}
+
+const storedGroupId = readStoredGroupId()
+
 const query = ref('')
-const activeGroupId = ref('')
+const activeGroupId = ref(storedGroupId)
 /** 当前居中那张卡对应的真实数据下标（轮播对外只报数据下标，重复铺满时会折回） */
 const activeIndex = ref(0)
 
@@ -42,15 +64,16 @@ const activeGroup = computed(
 /**
  * 默认分组必须选「有应用的那个」，否则第一个分组正好是空的时候，打开首页就是一片空白。
  * 用户手动选过之后就完全尊重他的选择（包括故意停在空分组）。
+ * 本地记住了上次的选择，也算「用户选过」—— 否则每次刷新都会被默认规则顶回去。
  */
-const userPicked = ref(false)
+const userPicked = ref(Boolean(storedGroupId))
 
 function pickDefaultGroup(): void {
   const groups = store.sortedGroups
-  if (!groups.length) {
-    activeGroupId.value = ''
-    return
-  }
+  // 数据还没到位：别把当前选择清掉 —— 它可能正是 localStorage 里记住的那个，
+  // 清成空串后 userPicked 的校验会判它「不存在」，于是被默认组顶掉。
+  if (!groups.length) return
+
   if (userPicked.value) {
     // 只是保证选中的组没被删掉
     if (!groups.some((group) => group.id === activeGroupId.value)) {
@@ -71,6 +94,21 @@ function selectGroup(id: string): void {
   userPicked.value = true
   activeGroupId.value = id
 }
+
+/**
+ * 只记住「确实存在」的分组：
+ * 数据还没到位时 activeGroupId 可能是空串，或者上次存的组已经被删了 —— 这些都不写。
+ * 被删的情况由 `pickDefaultGroup` 兜底改成第一个组，随后这里会把新的 id 覆盖上去。
+ */
+watch(
+  () => [activeGroupId.value, store.sortedGroups] as const,
+  () => {
+    const id = activeGroupId.value
+    if (!id) return
+    if (!store.sortedGroups.some((group) => group.id === id)) return
+    writeStoredGroupId(id)
+  },
+)
 
 /**
  * 轮播是强制 remount 的：切换分组或搜索条件变化后必须回到第一张，
