@@ -92,13 +92,20 @@ npm run dev        # http://localhost:5173
 
 ## 部署
 
-前端是纯静态产物，`dist/` 丢到任意静态托管即可（Vercel / Netlify / Cloudflare Pages / Nginx）。
+线上地址（GitHub Pages，push 到 `main` 自动发布）：
 
-```bash
-npm run build
-```
+- 前台：<https://helisz.github.io/toolbox/>
+- 后台：<https://helisz.github.io/toolbox/admin>
 
-记得配 SPA 回退（`**` → `/index.html`），否则 `/admin` 直接刷新会 404。
+流水线在 [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml)：`npm ci` → `npm run build:pages` → 上传 `dist/`。
+
+三个与 Pages 相关的细节：
+
+1. **子路径**：项目站点部署在 `/toolbox/` 下，构建时用 `VITE_BASE_PATH=/toolbox/` 覆盖 `vite.config.ts` 的 `base`；`createWebHistory(import.meta.env.BASE_URL)` 会自动跟随。换自定义域名时把它改成 `/`。
+2. **深链接回退**：Pages 不支持 rewrite，`scripts/postbuild-pages.mjs` 会把 `index.html` 复制成 `404.html` —— 直接刷新 `/toolbox/admin` 会拿到 404 状态码但正确渲染 SPA。
+3. **环境变量**：CI 里没有 `.env.local`，两个 `VITE_SUPABASE_*` 写在 workflow 的 `env` 里（anon key 本来就会打进前端包，安全边界在 RLS）。
+
+部署到别的静态托管（Vercel / Netlify / Cloudflare Pages / Nginx）也可以：`npm run build`，产物 `dist/`，记得配 SPA 回退（`**` → `/index.html`）。
 
 ## 已知限制
 
