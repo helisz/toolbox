@@ -155,10 +155,6 @@ function clearSearch(): void {
             <X class="size-3.5" />
           </button>
         </div>
-
-        <p v-if="!searching && activeGroup" class="text-xs text-muted-foreground">
-          {{ activeGroup.name }} · {{ items.length }} 个应用
-        </p>
       </div>
 
       <div
