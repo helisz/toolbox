@@ -20,6 +20,11 @@ const props = withDefaults(
   defineProps<{
     /** 卡片数量（内容由插槽渲染） */
     count: number
+    /**
+     * 应用太少时把卡片循环重复铺满整条轮播（而不是只孤零零一张）。
+     * 重复后环变长，邻居关系自然成立；此时分页点隐藏（下标会重复，点没有意义）。
+     */
+    repeat?: boolean
     /** 第一张邻卡旋转角度 */
     rotate?: number
     /** 第一张邻卡后退量，卡片宽度的比例 */
@@ -54,6 +59,7 @@ const props = withDefaults(
     cardHeight: 'var(--cf-card)',
     gap: 0.05,
     loop: true,
+    repeat: false,
     showNavigation: false,
     showPagination: false,
     label: '应用轮播',
@@ -73,7 +79,10 @@ const selected = ref(0)
 let pos = 0
 /** 本次 settle 的目标。从 `pos` 起步会吞掉飞行途中落下的按键 */
 let target = 0
-let cardWidthPx = 0
+/** 卡宽由 DOM 量出来；必须是 ref，因为「铺满」要据此决定渲染多少张卡 */
+const cardWidthPx = ref(0)
+/** 可视区宽度，同样用于算「铺满」需要几张卡 */
+const frameWidthPx = ref(0)
 let raf: number | null = null
 /** 本次按下后指针移动过的像素数，用来抑制「拖完顺带点了链接」 */
 let movedPx = 0
@@ -83,7 +92,36 @@ let captured = false
 let drag: { id: number; x: number; pos: number; v: number; t: number } | null = null
 let observer: ResizeObserver | null = null
 
-const total = computed(() => Math.max(0, Math.floor(props.count)))
+/** 真实卡片数（= 调用方的数据条数） */
+const realCount = computed(() => Math.max(0, Math.floor(props.count)))
+
+/** 重复铺满时的最少卡片数，屏幕极窄也不至于只剩一两张 */
+const MIN_SLOTS = 5
+
+/**
+ * 实际渲染的卡片数。
+ * - 常态：等于真实条数；
+ * - `repeat` 且数据太少：按「可视区宽度 / 每张卡占位」把环补长，
+ *   调用方用 `index % count` 取内容，于是同一应用会在两侧继续排下去。
+ */
+const total = computed(() => {
+  const count = realCount.value
+  if (!props.repeat || count <= 0) return count
+  const pitch = cardWidthPx.value * (1 + props.gap)
+  if (!pitch) return Math.max(count, MIN_SLOTS)
+  const needed = Math.ceil(frameWidthPx.value / pitch) + 2
+  return Math.max(count, MIN_SLOTS, needed)
+})
+
+/** 是否发生了重复：此时下标不再唯一，分页点必须隐藏 */
+const isRepeating = computed(() => total.value > realCount.value)
+
+/** 把渲染下标折回真实数据下标，`change` 事件对外只报真实下标 */
+function toItemIndex(displayIndex: number): number {
+  const count = realCount.value
+  if (count <= 0) return 0
+  return isRepeating.value ? ((displayIndex % count) + count) % count : displayIndex
+}
 
 function setCardEl(el: unknown, index: number): void {
   cards[index] = el instanceof HTMLElement ? el : null
@@ -102,7 +140,7 @@ function indexAt(value: number): number {
  */
 function paint(): void {
   const count = total.value
-  const width = cardWidthPx
+  const width = cardWidthPx.value
   if (!width || count <= 0) return
 
   const pitch = width * (1 + props.gap)
@@ -168,7 +206,7 @@ function goTo(index: number): void {
   // 走环上的短边，而不是绕回去
   const to = props.loop ? index + Math.round((target - index) / count) * count : index
   settle(clampPos(to))
-  emit('change', indexAt(to))
+  emit('change', toItemIndex(indexAt(to)))
 }
 
 function nudge(by: number): void {
@@ -176,9 +214,9 @@ function nudge(by: number): void {
 }
 
 function measure(): void {
+  frameWidthPx.value = frameEl.value?.clientWidth ?? 0
   const card = cards[0]
-  if (!card) return
-  cardWidthPx = card.offsetWidth
+  if (card) cardWidthPx.value = card.offsetWidth
   paint()
 }
 
@@ -197,7 +235,7 @@ function onPointerMove(event: PointerEvent): void {
   const current = drag
   if (!current || current.id !== event.pointerId) return
 
-  const pitch = cardWidthPx * (1 + props.gap)
+  const pitch = cardWidthPx.value * (1 + props.gap)
   if (!pitch) return
 
   const now = performance.now()
@@ -218,7 +256,7 @@ function onPointerMove(event: PointerEvent): void {
   const index = indexAt(pos)
   if (index !== selected.value) {
     selected.value = index
-    emit('change', index)
+    emit('change', toItemIndex(index))
   }
   paint()
 }
@@ -373,9 +411,12 @@ watch(
       </template>
     </div>
 
-    <div v-if="props.showPagination" class="mt-4 flex items-center justify-center gap-2">
+    <div
+      v-if="props.showPagination && !isRepeating"
+      class="mt-4 flex items-center justify-center gap-2"
+    >
       <button
-        v-for="(_, index) in total"
+        v-for="(_, index) in realCount"
         :key="index"
         type="button"
         :aria-label="`跳到第 ${index + 1} 个`"

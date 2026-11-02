@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 import EmptyState from '@/components/common/EmptyState.vue'
+import AppInfoPanel from '@/components/site/AppInfoPanel.vue'
 import AppSlide from '@/components/site/AppSlide.vue'
 import SiteHeader from '@/components/site/SiteHeader.vue'
 import { CoverflowCarousel } from '@/components/ui/coverflow-carousel'
@@ -14,6 +15,8 @@ const store = useDataStore()
 
 const query = ref('')
 const activeGroupId = ref('')
+/** 当前居中那张卡对应的真实数据下标（轮播对外只报数据下标，重复铺满时会折回） */
+const activeIndex = ref(0)
 
 const searching = computed(() => query.value.trim().length > 0)
 
@@ -24,6 +27,8 @@ const items = computed<AppItem[]>(() =>
     ? searchHits.value.map((hit) => hit.item)
     : store.visibleGroupItems(activeGroupId.value),
 )
+
+const activeItem = computed<AppItem | null>(() => items.value[activeIndex.value] ?? null)
 
 const counts = computed(() => {
   const result: Record<string, number> = {}
@@ -74,6 +79,15 @@ function selectGroup(id: string): void {
  */
 const carouselKey = computed(() => `${activeGroupId.value}|${query.value.trim()}`)
 
+// 换组 / 换搜索条件后，信息区要跟着回到第一条
+watch(carouselKey, () => {
+  activeIndex.value = 0
+})
+
+/** 应用少于这个数就把卡片循环重复，把整条轮播铺满 */
+const REPEAT_BELOW = 5
+const shouldRepeat = computed(() => items.value.length > 0 && items.value.length < REPEAT_BELOW)
+
 // 用 subscribe() 返回的释放函数，而不是直接 store.unsubscribe()：
 // 前后台可能同时订阅，谁也不能替别人拆监听
 let release: (() => void) | undefined
@@ -94,8 +108,10 @@ function clearSearch(): void {
   <div class="flex min-h-full flex-col bg-background">
     <SiteHeader v-model:search="query" />
 
-    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-16 pt-8">
-      <!-- 应用组：居中下拉 -->
+    <!-- 分组 + 轮播 + 信息区整体在剩余高度里垂直居中 -->
+    <main
+      class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 px-4 py-10"
+    >
       <div class="flex flex-col items-center gap-2">
         <Select
           v-if="!searching"
@@ -128,7 +144,9 @@ function clearSearch(): void {
           v-else
           class="flex items-center gap-2 rounded-full border bg-muted/40 px-4 py-2 text-xs text-muted-foreground"
         >
-          <span>「{{ query.trim() }}」<span class="text-foreground">{{ items.length }}</span> 个结果</span>
+          <span>
+            「{{ query.trim() }}」<span class="text-foreground">{{ items.length }}</span> 个结果
+          </span>
           <button
             type="button"
             class="flex items-center gap-0.5 rounded-full px-1 text-foreground/70 transition-colors hover:text-foreground"
@@ -146,18 +164,18 @@ function clearSearch(): void {
 
       <div
         v-if="store.error"
-        class="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
       >
         {{ store.error }}
       </div>
 
       <!-- 首屏骨架 -->
-      <div v-if="store.loading" class="mt-14 flex items-center justify-center gap-4">
+      <div v-if="store.loading" class="flex items-center justify-center gap-4 py-6">
         <Skeleton
           v-for="index in 3"
           :key="index"
           :class="[
-            'h-[280px] w-[clamp(150px,20vw,220px)] rounded-2xl',
+            'size-[clamp(140px,17vw,180px)] rounded-2xl',
             index === 2 ? 'opacity-40' : index === 1 ? 'opacity-70' : '',
           ]"
         />
@@ -165,42 +183,44 @@ function clearSearch(): void {
 
       <EmptyState
         v-else-if="!store.sortedGroups.length"
-        class="mt-14"
         title="还没有应用组"
         description="去后台创建第一个分组，应用都挂在分组下面。"
       />
 
       <EmptyState
         v-else-if="!items.length"
-        class="mt-14"
         :title="searching ? '没有匹配的应用' : '这个分组还是空的'"
         :description="
           searching ? '换个关键词试试，搜索只覆盖启用中的应用。' : '去后台给这个分组添加应用。'
         "
       />
 
-      <CoverflowCarousel
-        v-else
-        :key="carouselKey"
-        :count="items.length"
-        class="mt-2"
-        card-width="clamp(180px, 24vw, 240px)"
-        card-height="clamp(272px, 32vw, 330px)"
-        :gap="0.06"
-        :rotate="42"
-        :depth="0.55"
-        show-navigation
-        show-pagination
-        :label="searching ? '搜索结果轮播' : `${activeGroup?.name ?? '应用'}轮播`"
-      >
-        <template #default="{ index, active }">
-          <AppSlide v-if="items[index]" :item="items[index]!" :active="active" />
-        </template>
-      </CoverflowCarousel>
+      <template v-else>
+        <CoverflowCarousel
+          :key="carouselKey"
+          :count="items.length"
+          :repeat="shouldRepeat"
+          class="w-full"
+          card-width="clamp(140px, 17vw, 180px)"
+          card-height="clamp(140px, 17vw, 180px)"
+          :gap="0.08"
+          :rotate="40"
+          :depth="0.5"
+          show-navigation
+          show-pagination
+          :label="searching ? '搜索结果轮播' : `${activeGroup?.name ?? '应用'}轮播`"
+          @change="(index) => (activeIndex = index)"
+        >
+          <template #default="{ index, active }">
+            <!-- 数据少时轮播会重复铺满，这里用取模把渲染下标折回真实数据 -->
+            <AppSlide v-if="items.length" :item="items[index % items.length]!" :active="active" />
+          </template>
+        </CoverflowCarousel>
 
-      <p v-if="items.length > 1" class="mt-2 text-center text-[11px] text-muted-foreground/70">
-        拖动、方向键或点两侧卡片切换
-      </p>
+        <AppInfoPanel v-if="activeItem" :item="activeItem" />
+
+        <p class="text-[11px] text-muted-foreground/70">拖动、方向键或点两侧卡片切换</p>
+      </template>
     </main>
   </div>
 </template>
