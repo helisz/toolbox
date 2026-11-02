@@ -19,10 +19,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // supabase-js 与 markdown 渲染体积大且只在部分路由用到，拆开避免首屏全量加载
+        // supabase-js 体积大且首屏用不到，单独拆包避免阻塞
         manualChunks: {
           supabase: ['@supabase/supabase-js'],
-          markdown: ['markdown-it', 'dompurify'],
         },
       },
     },

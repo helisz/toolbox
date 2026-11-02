@@ -3,17 +3,8 @@ import { LockClosedIcon, MagnifyingGlassIcon, Squares2X2Icon } from '@heroicons/
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { AppGroup } from '@/types'
-
-const props = defineProps<{
-  groups: AppGroup[]
-  activeGroupId: string
-  searching: boolean
-}>()
 
 const search = defineModel<string>('search', { required: true })
-const emit = defineEmits<{ 'select-group': [id: string] }>()
 </script>
 
 <template>
@@ -33,7 +24,7 @@ const emit = defineEmits<{ 'select-group': [id: string] }>()
         <Input
           v-model="search"
           class="pl-8"
-          placeholder="搜索应用名或标签…"
+          placeholder="搜索应用名、简介或标签…"
           aria-label="搜索应用"
         />
       </div>
@@ -45,23 +36,6 @@ const emit = defineEmits<{ 'select-group': [id: string] }>()
           <LockClosedIcon class="size-4" />
         </RouterLink>
       </Button>
-    </div>
-
-    <!-- 移动端：侧边栏收起，改为顶部下拉切换分组 -->
-    <div v-if="!props.searching" class="mx-auto max-w-7xl px-4 pb-3 lg:hidden">
-      <Select
-        :model-value="props.activeGroupId"
-        @update:model-value="(value) => emit('select-group', String(value))"
-      >
-        <SelectTrigger aria-label="切换应用组">
-          <SelectValue placeholder="选择应用组" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="group in props.groups" :key="group.id" :value="group.id">
-            {{ group.name }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
     </div>
   </header>
 </template>

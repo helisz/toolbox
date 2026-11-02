@@ -188,18 +188,15 @@ toolbox/
    │  ├─ index.ts
    │  └─ guards.ts
    ├─ components/
-   │  ├─ ui/                     # shadcn-vue 组件（button/dialog/select/input/tabs/...）
+   │  ├─ ui/                     # shadcn-vue 组件（button/dialog/select/input/tabs/switch/textarea/...）
+   │  │  └─ coverflow-carousel/  # 3D 轮播，移植自 docs/carousel.md
    │  ├─ common/
    │  │  ├─ ThemeToggle.vue
    │  │  ├─ AppIcon.vue          # slug → heroicon 组件 + 兜底色
-   │  │  ├─ EmptyState.vue
-   │  │  └─ PageSkeleton.vue
+   │  │  └─ EmptyState.vue
    │  ├─ site/
-   │  │  ├─ SiteHeader.vue       # 移动端下拉切换分组 + 搜索 + 主题
-   │  │  ├─ GroupSidebar.vue
-   │  │  ├─ AppCard.vue
-   │  │  ├─ AppGrid.vue
-   │  │  └─ AppDetailDialog.vue
+   │  │  ├─ SiteHeader.vue       # 搜索 + 主题 + 后台入口
+   │  │  └─ AppSlide.vue         # 轮播里的一张卡片：图标/名称/地址/跳转/简介
    │  └─ admin/
    │     ├─ GroupManager.vue
    │     ├─ AppManager.vue
@@ -580,6 +577,29 @@ router.beforeEach(async (to) => {
 - **token 过期 / 被撤销**：Supabase 自动刷新 access token，session 失效时 `onAuthStateChange` 回调 `null`。订阅里做一次判断：当前在 `/admin` 且 `user` 变 `null` → `router.replace({name:'admin-login'})` + toast。不需要手写 401 拦截器。
 - **非管理员账号**：已登录但 `admins` 表里没有自己那行 → RLS 会拒绝所有写操作。UI 层用 `authStore.isAdmin` 显示「当前账号无管理员权限」并阻止进入编辑器，避免让用户撞一堆 RLS 报错。
 - 登录成功后跳 `route.query.redirect ?? '/admin'`。
+
+### 5.1 首页结构（coverflow 轮播）
+
+首页从「侧边栏 + 卡片网格 + 详情弹窗」改成单屏聚焦：
+
+```
+[ header: 工具箱 ............ 搜索  主题  后台 ]
+              [ 应用组 ▾ ]        ← 居中下拉
+        ◄  [卡] [卡] [卡] [卡]  ►  ← coverflow
+              ● ○ ○ ○            ← 分页点
+```
+
+- 一张卡片 = 图标（可点，跳 Git 地址）+ 应用名 + 地址 + 「跳转」按钮 + 简介（最多三行，`line-clamp-3`）。
+- **没有详情弹窗**：简介就是后台维护的 `intro`，README 全文不再渲染到前台（`lib/markdown.ts` 因此暂时没有调用方，保留着以备将来恢复详情页）。
+- 非居中卡片的内部链接 `pointer-events-none` 且 `tabindex="-1"`，点一下只是把它转到中间，避免误跳；拖拽超过 6px 后 `click.capture` 会吞掉那次点击。
+
+轮播本身在 `components/ui/coverflow-carousel/CoverflowCarousel.vue`，是 `docs/carousel.md` 里 React 版的移植，三处**必须**保留的实现细节：
+
+1. 每帧只写 `transform` / `opacity` / `z-index` 到 DOM，**不经过响应式数据** —— 否则 60fps 下每帧重渲染全部卡片；
+2. 循环靠把距离折到环的短边（`offset > count/2` 时减 `count`），不克隆节点、不重排 DOM；
+3. 卡宽是唯一需要测量的量（pitch / 景深 / 透视都由它推导），用 `ResizeObserver` 监听容器。
+
+修掉的一个原版缺陷：`edge = count/2 - distance` 在只有 1~2 张卡时会把唯一那张压暗（`count/2 = 0.5`），改成仅在 `count/2 > 1` 时做边缘淡出。
 
 ---
 
