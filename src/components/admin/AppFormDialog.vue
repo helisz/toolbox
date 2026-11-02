@@ -331,7 +331,7 @@ async function submit(): Promise<void> {
           <!-- 预设封面：打包在仓库里的静态图，选了不占存储、也不上传 -->
           <div class="space-y-2 pt-1">
             <Label class="text-xs text-muted-foreground">或从预设里选（{{ COVER_PRESETS.length }} 张）</Label>
-            <div class="grid grid-cols-4 gap-2 sm:grid-cols-6">
+            <div class="grid grid-cols-5 gap-1.5 sm:grid-cols-9">
               <button
                 v-for="preset in COVER_PRESETS"
                 :key="preset.id"
@@ -340,7 +340,7 @@ async function submit(): Promise<void> {
                 :aria-label="'使用预设封面'"
                 :aria-pressed="activePreset === preset.id"
                 :class="[
-                  'aspect-[2/3] overflow-hidden rounded-md border bg-muted transition',
+                  'aspect-[2/3] overflow-hidden rounded border bg-muted transition',
                   activePreset === preset.id
                     ? 'border-primary ring-2 ring-primary/40'
                     : 'border-border hover:border-primary/60 hover:ring-1 hover:ring-primary/20',
