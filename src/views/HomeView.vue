@@ -113,11 +113,10 @@ function clearSearch(): void {
   <div class="flex min-h-full flex-col bg-background">
     <SiteHeader v-model:search="query" />
 
-    <!-- 分组 + 轮播 + 信息区整体在剩余高度里垂直居中 -->
-    <main
-      class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 px-4 py-10"
-    >
-      <div class="flex flex-col items-center gap-2">
+    <!-- 分组 + 轮播 + 信息区整体在剩余高度里垂直居中。
+         左右内边距不给 main，而是各块自己带 —— 轮播才能贴满屏宽（移动端尤其明显） -->
+    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 py-10">
+      <div class="flex w-full flex-col items-center gap-2 px-4">
         <Select
           v-if="!searching"
           :model-value="activeGroupId"
@@ -165,7 +164,7 @@ function clearSearch(): void {
 
       <div
         v-if="store.error"
-        class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        class="mx-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
       >
         {{ store.error }}
       </div>
@@ -183,12 +182,14 @@ function clearSearch(): void {
 
       <EmptyState
         v-else-if="!store.sortedGroups.length"
+        class="mx-4"
         title="还没有应用组"
         description="去后台创建第一个分组，应用都挂在分组下面。"
       />
 
       <EmptyState
         v-else-if="!items.length"
+        class="mx-4"
         :title="searching ? '没有匹配的应用' : '这个分组还是空的'"
         :description="
           searching ? '换个关键词试试，搜索只覆盖启用中的应用。' : '去后台给这个分组添加应用。'
@@ -222,14 +223,16 @@ function clearSearch(): void {
         <div
           v-if="activeItem"
           :class="[
-            'transition-opacity duration-100 ease-out',
+            'w-full px-4 transition-opacity duration-100 ease-out',
             dragging ? 'pointer-events-none opacity-0' : 'opacity-100',
           ]"
         >
           <AppInfoPanel :item="activeItem" />
         </div>
 
-        <p class="text-[11px] text-muted-foreground/70">拖动、方向键或点两侧卡片切换</p>
+        <p class="px-4 text-[11px] text-muted-foreground/70">
+          拖动、方向键或点两侧卡片切换
+        </p>
       </template>
     </main>
   </div>
