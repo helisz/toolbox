@@ -229,10 +229,6 @@ function clearSearch(): void {
         >
           <AppInfoPanel :item="activeItem" />
         </div>
-
-        <p class="px-4 text-[11px] text-muted-foreground/70">
-          拖动、方向键或点两侧卡片切换
-        </p>
       </template>
     </main>
   </div>

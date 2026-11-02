@@ -65,18 +65,18 @@ async function logout(): Promise<void> {
         {{ store.error }}
       </div>
 
-      <Tabs default-value="groups">
+      <Tabs default-value="apps">
         <TabsList class="mb-4">
-          <TabsTrigger value="groups">应用组</TabsTrigger>
           <TabsTrigger value="apps">应用</TabsTrigger>
+          <TabsTrigger value="groups">应用组</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="groups">
-          <GroupManager />
-        </TabsContent>
 
         <TabsContent value="apps">
           <AppManager />
+        </TabsContent>
+
+        <TabsContent value="groups">
+          <GroupManager />
         </TabsContent>
       </Tabs>
     </main>
