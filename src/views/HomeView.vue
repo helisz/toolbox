@@ -2,13 +2,14 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { LoaderCircle, X } from 'lucide-vue-next'
 import EmptyState from '@/components/common/EmptyState.vue'
+import AppCard from '@/components/site/AppCard.vue'
 import AppInfoPanel from '@/components/site/AppInfoPanel.vue'
 import AppSlide from '@/components/site/AppSlide.vue'
 import SiteHeader from '@/components/site/SiteHeader.vue'
 import { CoverflowCarousel } from '@/components/ui/coverflow-carousel'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { useDataStore } from '@/stores/data'
-import type { AppItem } from '@/types'
+import type { AppGroup, AppItem, HomeViewMode } from '@/types'
 
 const store = useDataStore()
 
@@ -50,6 +51,49 @@ const items = computed<AppItem[]>(() =>
 )
 
 const activeItem = computed<AppItem | null>(() => items.value[activeIndex.value] ?? null)
+
+/**
+ * 视图模式：默认「网格」（按应用组竖着分区），轮播是副视图。
+ * 选择记在 localStorage 里，下次进来还是上次那个 —— 和分组记忆同一套做法。
+ */
+const VIEW_STORAGE_KEY = 'toolbox-view'
+
+function readViewMode(): HomeViewMode {
+  try {
+    const stored = window.localStorage.getItem(VIEW_STORAGE_KEY)
+    if (stored === 'grid' || stored === 'slider') return stored
+  } catch {
+    /* 隐私模式下 localStorage 可能抛错 */
+  }
+  return 'grid'
+}
+
+const viewMode = ref<HomeViewMode>(readViewMode())
+
+watch(viewMode, (value) => {
+  try {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, value)
+  } catch {
+    /* 存不下就算了，不影响当前会话 */
+  }
+})
+
+/**
+ * 网格视图的数据：按应用组竖着排，每个组里是该组启用中的应用。
+ * - 空组不占位置（前台没有「空分组」这个概念，轮播视图才有「这个组还是空的」）
+ * - 搜索时把命中结果按原分组归类，跨组的命中会各回各家
+ */
+const gridSections = computed<{ group: AppGroup; items: AppItem[] }[]>(() => {
+  const hits = searching.value ? searchHits.value : null
+  const sections: { group: AppGroup; items: AppItem[] }[] = []
+  for (const group of store.sortedGroups) {
+    const list = hits
+      ? hits.filter((hit) => hit.item.group_id === group.id).map((hit) => hit.item)
+      : store.visibleGroupItems(group.id)
+    if (list.length) sections.push({ group, items: list })
+  }
+  return sections
+})
 
 const counts = computed(() => {
   const result: Record<string, number> = {}
@@ -143,14 +187,21 @@ function clearSearch(): void {
 
 <template>
   <div class="flex min-h-full flex-col bg-background">
-    <SiteHeader v-model:search="query" />
+    <SiteHeader v-model:search="query" v-model:view="viewMode" />
 
-    <!-- 分组 + 轮播 + 信息区整体在剩余高度里垂直居中。
+    <!-- 网格视图（默认）：从上往下按应用组分区，内容多了就整页滚。
+         轮播视图：分组 + 轮播 + 信息区整体在剩余高度里垂直居中，
          左右内边距不给 main，而是各块自己带 —— 轮播才能贴满屏宽（移动端尤其明显） -->
-    <main class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 py-10">
-      <div class="flex w-full flex-col items-center gap-2 px-4">
+    <main
+      :class="
+        viewMode === 'grid'
+          ? 'mx-auto w-full max-w-6xl flex-1 px-4 py-8'
+          : 'mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 py-10'
+      "
+    >
+      <div v-if="viewMode === 'slider' || searching" class="flex w-full flex-col items-center gap-2 px-4">
         <Select
-          v-if="!searching"
+          v-if="viewMode === 'slider' && !searching"
           :model-value="activeGroupId"
           @update:model-value="(value) => selectGroup(String(value ?? ''))"
         >
@@ -196,7 +247,7 @@ function clearSearch(): void {
 
       <div
         v-if="store.error"
-        class="mx-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        class="mx-4 mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
       >
         {{ store.error }}
       </div>
@@ -214,47 +265,86 @@ function clearSearch(): void {
 
       <EmptyState
         v-else-if="!store.sortedGroups.length"
-        class="mx-4"
+        class="mt-4"
         title="还没有应用组"
         description="去后台创建第一个分组，应用都挂在分组下面。"
       />
 
-      <EmptyState
-        v-else-if="!items.length"
-        class="mx-4"
-        :title="searching ? '没有匹配的应用' : '这个分组还是空的'"
-        :description="
-          searching ? '换个关键词试试，搜索只覆盖启用中的应用。' : '去后台给这个分组添加应用。'
-        "
-      />
+      <!-- 网格视图：每个组一个小节，卡片方阵 -->
+      <template v-else-if="viewMode === 'grid'">
+        <EmptyState
+          v-if="!gridSections.length"
+          class="mt-4"
+          :title="searching ? '没有匹配的应用' : '还没有启用中的应用'"
+          :description="
+            searching
+              ? '换个关键词试试，搜索只覆盖启用中的应用。'
+              : '去后台给分组添加应用，打开「启用」开关就会出现在这里。'
+          "
+        />
 
-      <template v-else>
-        <CoverflowCarousel
-          :key="carouselKey"
-          :count="items.length"
-          :repeat="shouldRepeat"
-          class="w-full"
-          card-width="clamp(156px, 18.5vw, 208px)"
-          card-height="clamp(234px, 27.75vw, 312px)"
-          :gap="0"
-          :rotate="44"
-          :depth="1"
-          :perspective="2.3"
-          show-navigation
-          show-pagination
-          :label="searching ? '搜索结果轮播' : `${activeGroup?.name ?? '应用'}轮播`"
-          @change="(index) => (activeIndex = index)"
-        >
-          <template #default="{ index, active }">
-            <!-- 数据少时轮播会重复铺满，这里用取模把渲染下标折回真实数据 -->
-            <AppSlide v-if="items.length" :item="items[index % items.length]!" :active="active" />
-          </template>
-        </CoverflowCarousel>
+        <div v-else :class="searching ? 'mt-6 space-y-8' : 'space-y-10'">
+          <section
+            v-for="section in gridSections"
+            :key="section.group.id"
+            :aria-label="section.group.name"
+            class="space-y-3"
+          >
+            <div class="flex items-center gap-2">
+              <h2 class="truncate text-sm font-semibold text-foreground">
+                {{ section.group.name }}
+              </h2>
+              <span class="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                {{ section.items.length }}
+              </span>
+            </div>
 
-        <!-- 一直显示，不等轮播停稳：换应用的那一下只做 100ms 淡入，遮掉硬切的感觉 -->
-        <div v-if="activeItem" :key="activeItem.id" class="w-full animate-fade-in px-4">
-          <AppInfoPanel :item="activeItem" />
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <AppCard v-for="item in section.items" :key="item.id" :item="item" />
+            </div>
+          </section>
         </div>
+      </template>
+
+      <!-- 轮播视图：一次只看一个应用，点两侧 / 拖 / 方向键切换 -->
+      <template v-else>
+        <EmptyState
+          v-if="!items.length"
+          class="mt-4"
+          :title="searching ? '没有匹配的应用' : '这个分组还是空的'"
+          :description="
+            searching ? '换个关键词试试，搜索只覆盖启用中的应用。' : '去后台给这个分组添加应用。'
+          "
+        />
+
+        <template v-else>
+          <CoverflowCarousel
+            :key="carouselKey"
+            :count="items.length"
+            :repeat="shouldRepeat"
+            class="w-full"
+            card-width="clamp(156px, 18.5vw, 208px)"
+            card-height="clamp(234px, 27.75vw, 312px)"
+            :gap="0"
+            :rotate="44"
+            :depth="1"
+            :perspective="2.3"
+            show-navigation
+            show-pagination
+            :label="searching ? '搜索结果轮播' : `${activeGroup?.name ?? '应用'}轮播`"
+            @change="(index) => (activeIndex = index)"
+          >
+            <template #default="{ index, active }">
+              <!-- 数据少时轮播会重复铺满，这里用取模把渲染下标折回真实数据 -->
+              <AppSlide v-if="items.length" :item="items[index % items.length]!" :active="active" />
+            </template>
+          </CoverflowCarousel>
+
+          <!-- 一直显示，不等轮播停稳：换应用的那一下只做 100ms 淡入，遮掉硬切的感觉 -->
+          <div v-if="activeItem" :key="activeItem.id" class="w-full animate-fade-in px-4">
+            <AppInfoPanel :item="activeItem" />
+          </div>
+        </template>
       </template>
     </main>
   </div>

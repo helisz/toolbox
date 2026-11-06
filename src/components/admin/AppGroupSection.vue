@@ -110,8 +110,8 @@ async function toggleEnabled(item: AppItem, enabled: boolean): Promise<void> {
           <GripVertical class="size-4" />
         </button>
 
-        <!-- 有封面就显示缩略图（2:3，和前台一致），没传还是原来的图标块 -->
-        <div v-if="item.image_path" class="h-10 w-[27px] shrink-0 overflow-hidden rounded">
+        <!-- 有封面就显示缩略图（正方形，和前台网格一致），没传还是原来的图标块 -->
+        <div v-if="item.image_path" class="size-10 shrink-0 overflow-hidden rounded">
           <img :src="coverUrl(item.image_path)" alt="" class="size-full object-cover" />
         </div>
         <AppIcon v-else :icon="item.hero_icon_name" :color="item.theme_color" size="sm" />

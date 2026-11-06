@@ -10,14 +10,15 @@ import { supabase } from '@/lib/supabase'
 export const COVER_BUCKET = 'app-covers'
 
 /**
- * 统一裁成 2:3 的 600×900 WebP。
+ * 统一裁成 **600×600 的正方形 WebP**：默认视图（网格）的卡片就是正方形封面。
  *
- * 卡片最大只有 168×252，600×900 已经是 3.5 倍超采样，够清晰了；
- * 定死尺寸的另一个好处是**存储和带宽可控**：一张封面永远 ≈30~80KB，
- * 不会因为谁传了张 8MB 的原图就让首页多下几 MB。
+ * 正方形已经是超采样（卡片最大约 300px 见方），够清晰；定死尺寸的另一个好处是
+ * **存储和带宽可控**：一张封面永远 ≈20~60KB，不会因为谁传了张 8MB 的原图就让首页多下几 MB。
+ *
+ * 历史数据里还有 600×900 的旧封面，渲染时都是 `object-cover`，不用迁移。
  */
 export const COVER_WIDTH = 600
-export const COVER_HEIGHT = 900
+export const COVER_HEIGHT = 600
 const COVER_QUALITY = 0.82
 
 /** 上传前的本地限制：单张 10MB，超过直接拒绝（反正最后都会压成几百 KB） */
@@ -79,9 +80,9 @@ function assertUsable(file: File): void {
 /**
  * 裁剪 + 压缩，返回最终的 WebP。
  *
- * 按 `object-cover` 的语义**居中裁切**再缩放：先算「填满 2:3 需要多大一块源图」，
- * 从中心取这块，画到 600×900 的画布上 —— 比例不对的图不会被拉扁，
- * 只是左右（或上下）各切掉一些，和前台卡片看到的完全一致。
+ * 按 `object-cover` 的语义**居中裁切**再缩放：先算「填满正方形需要多大一块源图」，
+ * 从中心取这块，画到 600×600 的画布上 —— 比例不对的图不会被拉扁，
+ * 只是左右（或上下）各切掉一些，和前台网格卡片看到的完全一致。
  */
 export async function prepareCover(file: File): Promise<Blob> {
   assertUsable(file)

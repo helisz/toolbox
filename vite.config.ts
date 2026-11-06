@@ -15,6 +15,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    watch: {
+      // .tmp 里放的是临时脚本和（无头）Chrome 的 profile 目录，几千个 html 文件。
+      // 不排除的话 watcher 会把它们全爬一遍：dev server 起得来但会卡死、狂发 page reload。
+      ignored: ['**/.tmp/**'],
+    },
   },
   build: {
     rollupOptions: {

@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { LayoutGrid, Search, UserRound } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { GalleryHorizontalEnd, LayoutGrid, Search, UserRound } from 'lucide-vue-next'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import type { HomeViewMode } from '@/types'
 
 const search = defineModel<string>('search', { required: true })
+/** 首页视图：网格 / 轮播。图标显示的是「点一下会切到哪个视图」 */
+const view = defineModel<HomeViewMode>('view', { required: true })
+
+const isGrid = computed(() => view.value === 'grid')
+
+function toggleView(): void {
+  view.value = isGrid.value ? 'slider' : 'grid'
+}
 </script>
 
 <template>
@@ -28,6 +38,19 @@ const search = defineModel<string>('search', { required: true })
           aria-label="搜索应用"
         />
       </div>
+
+      <!-- 视图切换：放搜索栏右边，挨着搜索框（切换的是「怎么展示同一批应用」） -->
+      <Button
+        variant="ghost"
+        size="icon"
+        :aria-label="isGrid ? '切换到轮播视图' : '切换到网格视图'"
+        :title="isGrid ? '切换到轮播视图' : '切换到网格视图'"
+        :aria-pressed="!isGrid"
+        @click="toggleView"
+      >
+        <GalleryHorizontalEnd v-if="isGrid" class="size-4" />
+        <LayoutGrid v-else class="size-4" />
+      </Button>
 
       <ThemeToggle />
 

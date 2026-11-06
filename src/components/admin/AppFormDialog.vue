@@ -275,9 +275,9 @@ async function submit(): Promise<void> {
         <div class="space-y-1.5">
           <Label>封面图</Label>
           <div class="flex items-start gap-3">
-            <!-- 2:3 预览，和前台卡片同一比例，所见即所得 -->
+            <!-- 正方形预览，和前台网格卡片同一比例，所见即所得 -->
             <div
-              class="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg border bg-muted"
+              class="relative aspect-square w-20 shrink-0 overflow-hidden rounded-lg border bg-muted"
             >
               <img
                 v-if="form.image_path"
@@ -321,8 +321,8 @@ async function submit(): Promise<void> {
                 </Button>
               </div>
               <p class="text-[11px] text-muted-foreground">
-                上传的图一律<b class="font-medium text-foreground">居中裁成 2:3、压到 600×900 的 WebP</b>
-                （约 30~80KB）。不想找图就直接从下面挑一张。
+                上传的图一律<b class="font-medium text-foreground">居中裁成正方形、压到 600×600 的 WebP</b>
+                （约 20~60KB）。不想找图就直接从下面挑一张。
               </p>
               <p v-if="uploadError" class="text-[11px] text-destructive">{{ uploadError }}</p>
             </div>
@@ -340,7 +340,7 @@ async function submit(): Promise<void> {
                 :aria-label="'使用预设封面'"
                 :aria-pressed="activePreset === preset.id"
                 :class="[
-                  'aspect-[2/3] overflow-hidden rounded border bg-muted transition',
+                  'aspect-square overflow-hidden rounded border bg-muted transition',
                   activePreset === preset.id
                     ? 'border-primary ring-2 ring-primary/40'
                     : 'border-border hover:border-primary/60 hover:ring-1 hover:ring-primary/20',

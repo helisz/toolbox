@@ -8,6 +8,9 @@ export type IconSlug = string
 
 export type ThemeMode = 'light' | 'dark'
 
+/** 首页的两种视图：网格（默认，按应用组分区）/ 轮播（副视图） */
+export type HomeViewMode = 'grid' | 'slider'
+
 export interface AppGroup {
   id: string
   name: string
